@@ -1,0 +1,14 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "FinFlow Local",
+      "Group": "Servers",
+      "Host": "postgres",
+      "Port": 5432,
+      "MaintenanceDB": "finflow",
+      "Username": "finflow",
+      "SSLMode": "prefer",
+      "Comment": "Auto-registered by docker-compose. Password: finflow"
+    }
+  }
+}
