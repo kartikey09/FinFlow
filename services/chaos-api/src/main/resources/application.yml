@@ -1,0 +1,23 @@
+spring:
+  application:
+    name: chaos-api
+  jackson:
+    default-property-inclusion: non_null
+
+server:
+    port: 9000
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  level:
+    io.finflow.chaos.api: INFO
+  pattern:
+    console: "%d{HH:mm:ss} %-5level %cyan(%logger{0}) - %msg%n"
