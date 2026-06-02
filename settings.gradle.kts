@@ -20,7 +20,7 @@ pluginManagement {
 // Modules will be uncommented as they're built:
 //
 // Day 2-4 (Chaos API):
-// include("services:chaos-api")
+include("services:chaos-api")
 //
 // Day 5 (first service shell):
 // include("services:aws-ingestor")

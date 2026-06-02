@@ -1,6 +1,7 @@
 # Gradle metadata
 .gradle/
 build/
+pgdata/
 
 # IDE files
 .idea/
