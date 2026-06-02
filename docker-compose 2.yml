@@ -1,0 +1,168 @@
+# =============================================================================
+# FinFlow — local infrastructure stack
+#
+# Brings up:
+#   - Postgres 16 with logical replication enabled (week-2 Debezium needs this)
+#   - Kafka 3.7 in KRaft mode (no Zookeeper)
+#   - Kafka UI for visual topic/message inspection
+#   - pgAdmin for visual DB inspection
+#   - Toxiproxy for network-level chaos injection (week-5 chaos tests)
+#
+# Usage:
+#   docker compose up -d           # bring up
+#   docker compose ps              # check health
+#   docker compose logs -f kafka   # tail one service
+#   docker compose down            # stop, keep volumes
+#   docker compose down -v         # stop, wipe volumes (clean slate)
+# =============================================================================
+
+name: finflow
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # Postgres 16 — primary OLTP database
+  #
+  # Critical flags:
+  #   wal_level=logical         → required by Debezium for CDC
+  #   max_replication_slots=10  → one slot per outbox-owning service
+  #   max_slot_wal_keep_size=2GB → safety net against orphan slots
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    container_name: finflow-postgres
+    environment:
+      POSTGRES_USER: finflow
+      POSTGRES_PASSWORD: finflow
+      POSTGRES_DB: finflow
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./infra/docker/postgres-data:/var/lib/postgresql/data
+      - ./infra/docker/postgres-init:/docker-entrypoint-initdb.d:ro
+    command:
+      - "postgres"
+      - "-c"
+      - "wal_level=logical"
+      - "-c"
+      - "max_wal_senders=10"
+      - "-c"
+      - "max_replication_slots=10"
+      - "-c"
+      - "max_slot_wal_keep_size=2GB"
+      - "-c"
+      - "log_min_duration_statement=500"
+      - "-c"
+      - "log_line_prefix=%t [%p]: [%l-1] user=%u,db=%d,app=%a "
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U finflow -d finflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - finflow-net
+
+  # ---------------------------------------------------------------------------
+  # Kafka 3.7 in KRaft mode (no Zookeeper) — single broker, fine for dev
+  #
+  # Dual listeners explained:
+  #   PLAINTEXT (9092)  → for OTHER CONTAINERS inside the Docker network
+  #   EXTERNAL (29092)  → for processes running on the HOST machine (e.g.
+  #                       a Spring Boot service launched from IntelliJ)
+  # ---------------------------------------------------------------------------
+  kafka:
+    image: apache/kafka:3.7.1
+    container_name: finflow-kafka
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: "broker,controller"
+      KAFKA_LISTENERS: "PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093,EXTERNAL://0.0.0.0:29092"
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka:9092,EXTERNAL://localhost:29092"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT"
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "1@kafka:9093"
+      KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+      KAFKA_INTER_BROKER_LISTENER_NAME: "PLAINTEXT"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_LOG_RETENTION_HOURS: 168
+      CLUSTER_ID: "finflow-local-cluster-id"
+    volumes:
+      - ./infra/docker/kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 30s
+    networks:
+      - finflow-net
+
+  # ---------------------------------------------------------------------------
+  # Kafka UI — open localhost:8090 to inspect topics, consumer groups, messages
+  # ---------------------------------------------------------------------------
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: finflow-kafka-ui
+    ports:
+      - "8090:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: finflow-local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+      DYNAMIC_CONFIG_ENABLED: "true"
+    depends_on:
+      kafka:
+        condition: service_healthy
+    networks:
+      - finflow-net
+
+  # ---------------------------------------------------------------------------
+  # pgAdmin — open localhost:8091, login dev@finflow.local / finflow
+  # Postgres server auto-registered via the servers.json mount
+  # ---------------------------------------------------------------------------
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: finflow-pgadmin
+    ports:
+      - "8091:80"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: dev@finflow.local
+      PGADMIN_DEFAULT_PASSWORD: finflow
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
+    volumes:
+      - ./infra/docker/pgadmin-data:/var/lib/pgadmin
+      - ./infra/docker/pgadmin-servers.json:/pgadmin4/servers.json:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - finflow-net
+
+  # ---------------------------------------------------------------------------
+  # Toxiproxy — network-level chaos. We stand it up on day 1 even though
+  # it's not actively used until week 5, because the alternative is
+  # remembering to add it later (which means you'll forget).
+  # ---------------------------------------------------------------------------
+  toxiproxy:
+    image: ghcr.io/shopify/toxiproxy:2.9.0
+    container_name: finflow-toxiproxy
+    command: ["-host", "0.0.0.0", "-config", "/config/toxiproxy.json"]
+    ports:
+      - "8474:8474"   # admin API
+      - "26092:26092" # placeholder kafka proxy listener (configured week 5)
+    volumes:
+      - ./infra/docker/toxiproxy/toxiproxy.json:/config/toxiproxy.json:ro
+    networks:
+      - finflow-net
+
+networks:
+  finflow-net:
+    driver: bridge
+    name: finflow-net

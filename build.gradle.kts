@@ -49,4 +49,28 @@ subprojects {
         ))
         options.encoding = "UTF-8"
     }
+//
+    val lombokVersion = "1.18.36"
+
+    dependencies {
+        // Pull in the Spring Boot BOM for test scope using Gradle's native platform()
+        // mechanism. This version-manages JUnit, AssertJ, Mockito, etc. for every
+        // module without needing the io.spring.dependency-management plugin at root.
+        // Service modules still apply that plugin themselves for their compile scope.
+        "testImplementation"(platform("org.springframework.boot:spring-boot-dependencies:3.3.2"))
+
+        // Lombok — compile-time only; available in every module
+        "compileOnly"("org.projectlombok:lombok:$lombokVersion")
+        "annotationProcessor"("org.projectlombok:lombok:$lombokVersion")
+        "testCompileOnly"("org.projectlombok:lombok:$lombokVersion")
+        "testAnnotationProcessor"("org.projectlombok:lombok:$lombokVersion")
+
+        // JUnit 5 — version managed by Spring BOM above
+        // junit-platform-launcher must be explicit for Gradle 8+
+        "testImplementation"("org.junit.jupiter:junit-jupiter")
+        "testRuntimeOnly"("org.junit.platform:junit-platform-launcher")
+
+        // AssertJ — fluent assertions used alongside JUnit 5 in every module
+        "testImplementation"("org.assertj:assertj-core")
+    }
 }

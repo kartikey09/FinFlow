@@ -1,0 +1,1 @@
+/usr/local/bin/postgres "-c" "wal_level=logical" "-c" "max_wal_senders=10" "-c" "max_replication_slots=10" "-c" "max_slot_wal_keep_size=2GB" "-c" "log_min_duration_statement=500" "-c" "log_line_prefix=%t [%p]: [%l-1] user=%u,db=%d,app=%a "

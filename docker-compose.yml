@@ -132,7 +132,7 @@ services:
     ports:
       - "8091:80"
     environment:
-      PGADMIN_DEFAULT_EMAIL: dev@finflow.local
+      PGADMIN_DEFAULT_EMAIL: dev@finflow.dev
       PGADMIN_DEFAULT_PASSWORD: finflow
       PGADMIN_CONFIG_SERVER_MODE: "False"
       PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
