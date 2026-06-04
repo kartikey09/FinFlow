@@ -14,7 +14,7 @@ package io.finflow.chaosapi.aws.dto;
  * rollback/compensation mechanisms in a simulated crisis.
  */
 
-public class PurchaseReservedInstancesResponse(
+public record PurchaseReservedInstancesResponse(
         String reservationId,
         String state
 ) {}
