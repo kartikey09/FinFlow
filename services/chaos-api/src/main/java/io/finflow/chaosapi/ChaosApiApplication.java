@@ -17,3 +17,12 @@ public class ChaosApiApplication {
         SpringApplication.run(ChaosApiApplication.class, args);
     }
 }
+
+/**
+ * The main entry point and bootstrap class for the Chaos API microservice.
+ *
+ * What this does (The Ignition Switch):
+ * This class starts the Spring Boot application, boots up the embedded web server,
+ * and automatically scans the project structure to wire together all the Controllers
+ * and Components (like the mock AWS billing data) required to run the service.
+ */

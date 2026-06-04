@@ -1,7 +1,7 @@
 package io.finflow.chaosapi.aws.dto;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonInclude;    //to set rules abt what makes it into the final JSON output
+import com.fasterxml.jackson.annotation.JsonProperty;   //allows to map a JSON key to a java variable
 
 /**
  * One row of an AWS Cost and Usage Report (CUR v2), modeled faithfully enough

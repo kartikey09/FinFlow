@@ -11,13 +11,14 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info   #actuator endpoints
   endpoint:
     health:
-      show-details: always
+      show-details: always   #additional details - eg. disk space left, db connected or not,etc
 
 logging:
   level:
-    io.finflow.chaos.api: INFO
+    io.finflow.chaos.api: INFO    #only show info and hide debug/trace lines
   pattern:
     console: "%d{HH:mm:ss} %-5level %cyan(%logger{0}) - %msg%n"
+    #time  severity-(INFO,WARN)   java class name   actual msg
