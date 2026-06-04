@@ -47,7 +47,7 @@ public class AwsBillingController {
         //to prevent the pagination crash
         int end = Math.min(offset + PAGE_SIZE, all.size());
 
-        List<AwsCurLineItem> page = all.sublist(offset,end);
+        List<AwsCurLineItem> page = all.subList(offset,end);
 
         String newToken = (end<all.size())? String.valueOf(end) : null;   //next offset if we have not reached the end otherwise null
 
