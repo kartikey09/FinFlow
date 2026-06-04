@@ -41,12 +41,12 @@ public class SyntheticCurData{
         this.objectMapper = objectMapper;
     }
 
-    @PostConstruct //
+    @PostConstruct //executed after DI is finished; used to perform init tasks
     void load() throws Exception{
         try (InputStream in = new ClassPathResource(RESOURCE).getInputStream()){
             lineItems = List.of(objectMapper.readValue(in, AwsCurLineItem[].class));
             //readValue(in, ) reads the raw file stream
-            //
+            //ClassPathResource - finds a resource/file easily in the application
         }
         log.info("[AWS-CHAOS] loaded {} synthetic CUR line items from {}",
                 lineItems.size(), RESOURCE);
