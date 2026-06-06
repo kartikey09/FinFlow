@@ -39,7 +39,7 @@ public class AwsBillingController {
     @GetMapping("/cost-and-usage-report")
     public CostAndUsageReportResponse costAndUsageReportResponse(
            @RequestParam(required = false) String nextToken){ //required=false makes it optional
-        // for the fisrt call - it arrives with no token
+        // for the first call - it arrives with no token
 
         List<AwsCurLineItem> all = data.all();  //memory cache list using .all method
         int offset = decodeToken(nextToken, all.size());  //from where to start reading
