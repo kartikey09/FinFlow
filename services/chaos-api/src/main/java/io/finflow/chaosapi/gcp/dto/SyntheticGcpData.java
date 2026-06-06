@@ -1,7 +1,6 @@
-package io.finflow.chaosapi.gcp;
+package io.finflow.chaosapi.gcp.dto;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.finflow.chaosapi.gcp.dto.GcpBillingRow;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,7 +15,7 @@ import java.util.List;
  * startup and holds them in memory. The GCP-side mirror of SyntheticCurData.
  *
  * Same pattern as the AWS loader by design: constructor-inject the configured
- * ObjectMapper, read the fixture once in a package-private @PostConstruct (so
+ * ObjectMapper, read the fixture once in a public @PostConstruct (so
  * tests can call load() without a Spring context), expose an immutable list.
  */
 @Component
@@ -33,7 +32,7 @@ public class SyntheticGcpData {
     }
 
     @PostConstruct
-    void load() throws Exception {
+    public void load() throws Exception {
         try (InputStream in = new ClassPathResource(RESOURCE).getInputStream()) {
             rows = List.of(objectMapper.readValue(in, GcpBillingRow[].class));
         }
