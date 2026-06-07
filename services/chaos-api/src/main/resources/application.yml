@@ -7,6 +7,12 @@ spring:
 server:
     port: 9000
 
+chaos:
+  enabled: true     #kill switch
+  fault-rate: 20    #percent of /aws/** and /gcp/** calls that get a fault (0-100)
+  hang-share: 0.5   # of faulted calls, fraction that hang vs return 503
+  hang-millis: 5000  #how long a "hang" sleeps
+
 management:
   endpoints:
     web:
@@ -21,4 +27,4 @@ logging:
     io.finflow.chaos.api: INFO    #only show info and hide debug/trace lines
   pattern:
     console: "%d{HH:mm:ss} %-5level %cyan(%logger{0}) - %msg%n"
-    #time  severity-(INFO,WARN)   java class name   actual msg
+    #time     (INFO,WARN)      java class name         actual msg
