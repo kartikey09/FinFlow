@@ -67,7 +67,7 @@ public class ChaosControlController{
      * instantly plunge the system into chaos so you can watch your safety nets deploy.
      *
      */
-    @PostMapping('/enable')
+    @PostMapping("/enable")
     public Map<String, Object> enable(@RequestParam(defaultValue = "true") boolean on){
         state.setEnabled(on);
         log.warn("[CHAOS_CONTROL] chaos enabled set to {}", on);

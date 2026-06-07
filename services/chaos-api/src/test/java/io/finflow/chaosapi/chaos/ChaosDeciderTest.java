@@ -1,4 +1,4 @@
-ppackage io.finflow.chaosapi.chaos;
+package io.finflow.chaosapi.chaos;
 
 import io.finflow.chaosapi.chaos.ChaosDecider;
 import io.finflow.chaosapi.chaos.ChaosProperties;
