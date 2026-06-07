@@ -9,6 +9,11 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.junit.jupiter.api.BeforeEach;
+import org.mockito.Mockito;
+import io.finflow.chaosapi.chaos.ChaosDecider;
+
 import java.util.LinkedHashSet;
 import java.util.Set;
 
@@ -27,6 +32,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class AwsBillingControllerTest {
 
     @Autowired MockMvc mockMvc;
+
+    @MockBean
+    ChaosDecider chaosDecider;
+
+    @BeforeEach
+    void disableChaosForTests() {
+        // Tell the fake dice-roller to always let traffic through
+        Mockito.when(chaosDecider.decide()).thenReturn(ChaosDecider.Outcome.PASS);
+    }
     @Autowired ObjectMapper objectMapper;
 
     @Test
