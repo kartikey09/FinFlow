@@ -1,4 +1,4 @@
-package io.finflow.chaosapi.aws;
+package io.finflow.chaosapi.aws.controller;
 
 import io.finflow.chaosapi.aws.dto.PurchaseReservedInstancesRequest;
 import io.finflow.chaosapi.aws.dto.PurchaseReservedInstancesResponse;
@@ -79,4 +79,3 @@ public class AwsCommitmentController {
  * status code, sets the Content-Type: application/json header, and sends it back across the
  * network to the client.
  */
-

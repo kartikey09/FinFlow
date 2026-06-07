@@ -1,7 +1,6 @@
-package io.finflow.chaosapi.aws;
+package io.finflow.chaosapi.aws.dto;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.finflow.chaosapi.aws.dto.AwsCurLineItem;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 

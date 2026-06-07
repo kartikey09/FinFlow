@@ -1,18 +1,18 @@
-package io.finflow.chaosapi.aws;
+package io.finflow.chaosapi.aws.controller;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.finflow.chaosapi.aws.dto.SyntheticCurData;
+import io.finflow.chaosapi.chaos.ChaosDecider;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
-
-import org.springframework.boot.test.mock.mockito.MockBean;
-import org.junit.jupiter.api.BeforeEach;
-import org.mockito.Mockito;
-import io.finflow.chaosapi.chaos.ChaosDecider;
 
 import java.util.LinkedHashSet;
 import java.util.Set;

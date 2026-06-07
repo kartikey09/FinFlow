@@ -1,7 +1,6 @@
-package io.finflow.chaosapi.aws;
+package io.finflow.chaosapi.aws.dto;
 
 import com.fasterxml.jackson.databind.ObjectMapper; //converts JSON text into java objects and vice versa
-import io.finflow.chaosapi.aws.dto.AwsCurLineItem;  //it contains the mapping of JSON to these java variables
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;    //java logging tools - print formatted msgs
 import org.slf4j.LoggerFactory;
