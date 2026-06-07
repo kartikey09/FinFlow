@@ -1,7 +1,8 @@
-package io.finflow.chaosapi.aws;
+package io.finflow.chaosapi.aws.controller;
 
 import io.finflow.chaosapi.aws.dto.AwsCurLineItem;
 import io.finflow.chaosapi.aws.dto.CostAndUsageReportResponse;
+import io.finflow.chaosapi.aws.dto.SyntheticCurData;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.GetMapping;

@@ -1,4 +1,4 @@
-package io.finflow.chaosapi.aws;
+package io.finflow.chaosapi.aws.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -8,10 +8,10 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
+import io.finflow.chaosapi.chaos.ChaosDecider;
+import org.mockito.Mockito;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.junit.jupiter.api.BeforeEach;
-import org.mockito.Mockito;
-import io.finflow.chaosapi.chaos.ChaosDecider;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.matchesPattern;
@@ -23,17 +23,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class AwsCommitmentControllerTest {
 
     @Autowired MockMvc mockMvc;
+    @Autowired ObjectMapper objectMapper;
 
-    @MockBean
-    ChaosDecider chaosDecider;
+    @MockBean ChaosDecider chaosDecider;
 
     @BeforeEach
-    void disableChaosForTests() {
-        // Tell the fake dice-roller to always let traffic through
+    void disableChaos() {
         Mockito.when(chaosDecider.decide()).thenReturn(ChaosDecider.Outcome.PASS);
     }
-
-    @Autowired ObjectMapper objectMapper;
 
     private static final String BODY = """
         {"reservedInstancesOfferingId":"offer-abc","instanceCount":10}
