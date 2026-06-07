@@ -1,0 +1,192 @@
+[
+  {
+    "billing_account_id": "01ABCD-234567-89EFGH",
+    "service": { "id": "6F81-5844-456A", "description": "Compute Engine" },
+    "sku": { "id": "D0AA-3C5D-7B11", "description": "A2 Instance Core running in Americas" },
+    "usage_start_time": "2025-11-17T10:00:00Z",
+    "usage_end_time": "2025-11-17T11:00:00Z",
+    "project": { "id": "northwind-platform", "name": "Northwind Platform" },
+    "labels": [
+      { "key": "team", "value": "platform" },
+      { "key": "cost_center", "value": "CC-100" }
+    ],
+    "cost": 12.24,
+    "currency": "USD",
+    "currency_conversion_rate": 1.0,
+    "usage": { "amount": 3600, "unit": "seconds", "amount_in_pricing_units": 1.0, "pricing_unit": "hour" },
+    "credits": [
+      { "name": "Committed Usage Discount: A2 Core", "amount": -8.16, "type": "COMMITTED_USAGE_DISCOUNT" }
+    ],
+    "cost_type": "regular"
+  },
+  {
+    "billing_account_id": "01ABCD-234567-89EFGH",
+    "service": { "id": "6F81-5844-456A", "description": "Compute Engine" },
+    "sku": { "id": "D0AA-3C5D-7B11", "description": "A2 Instance Core running in Americas" },
+    "usage_start_time": "2025-11-17T11:00:00Z",
+    "usage_end_time": "2025-11-17T12:00:00Z",
+    "project": { "id": "northwind-platform", "name": "Northwind Platform" },
+    "labels": [
+      { "key": "team", "value": "platform" },
+      { "key": "cost_center", "value": "CC-100" }
+    ],
+    "cost": 12.24,
+    "currency": "USD",
+    "currency_conversion_rate": 1.0,
+    "usage": { "amount": 3600, "unit": "seconds", "amount_in_pricing_units": 1.0, "pricing_unit": "hour" },
+    "credits": [
+      { "name": "Committed Usage Discount: A2 Core", "amount": -8.16, "type": "COMMITTED_USAGE_DISCOUNT" }
+    ],
+    "cost_type": "regular"
+  },
+  {
+    "billing_account_id": "01ABCD-234567-89EFGH",
+    "service": { "id": "6F81-5844-456A", "description": "Compute Engine" },
+    "sku": { "id": "D0AA-3C5D-7B11", "description": "A2 Instance Core running in Americas" },
+    "usage_start_time": "2025-11-17T10:00:00Z",
+    "usage_end_time": "2025-11-17T11:00:00Z",
+    "project": { "id": "northwind-ingestion", "name": "Northwind Ingestion" },
+    "labels": [
+      { "key": "team", "value": "ingestion" },
+      { "key": "cost_center", "value": "CC-300" }
+    ],
+    "cost": 20.40,
+    "currency": "USD",
+    "currency_conversion_rate": 1.0,
+    "usage": { "amount": 3600, "unit": "seconds", "amount_in_pricing_units": 1.0, "pricing_unit": "hour" },
+    "credits": [],
+    "cost_type": "regular"
+  },
+  {
+    "billing_account_id": "01ABCD-234567-89EFGH",
+    "service": { "id": "6F81-5844-456A", "description": "Compute Engine" },
+    "sku": { "id": "D0AA-3C5D-7B11", "description": "A2 Instance Core running in Americas" },
+    "usage_start_time": "2025-11-17T11:00:00Z",
+    "usage_end_time": "2025-11-17T12:00:00Z",
+    "project": { "id": "northwind-ingestion", "name": "Northwind Ingestion" },
+    "labels": [
+      { "key": "team", "value": "ingestion" },
+      { "key": "cost_center", "value": "CC-300" }
+    ],
+    "cost": 20.40,
+    "currency": "USD",
+    "currency_conversion_rate": 1.0,
+    "usage": { "amount": 3600, "unit": "seconds", "amount_in_pricing_units": 1.0, "pricing_unit": "hour" },
+    "credits": [],
+    "cost_type": "regular"
+  },
+  {
+    "billing_account_id": "01ABCD-234567-89EFGH",
+    "service": { "id": "6F81-5844-456A", "description": "Compute Engine" },
+    "sku": { "id": "E5C2-9A7F-22D8", "description": "A3 Instance Core running in Americas" },
+    "usage_start_time": "2025-11-17T10:00:00Z",
+    "usage_end_time": "2025-11-17T11:00:00Z",
+    "project": { "id": "northwind-models", "name": "Northwind Models" },
+    "labels": [
+      { "key": "team", "value": "models" },
+      { "key": "cost_center", "value": "CC-200" }
+    ],
+    "cost": 38.40,
+    "currency": "USD",
+    "currency_conversion_rate": 1.0,
+    "usage": { "amount": 3600, "unit": "seconds", "amount_in_pricing_units": 1.0, "pricing_unit": "hour" },
+    "credits": [
+      { "name": "Sustained Usage Discount", "amount": -3.84, "type": "SUSTAINED_USAGE_DISCOUNT" }
+    ],
+    "cost_type": "regular"
+  },
+  {
+    "billing_account_id": "01ABCD-234567-89EFGH",
+    "service": { "id": "6F81-5844-456A", "description": "Compute Engine" },
+    "sku": { "id": "E5C2-9A7F-22D8", "description": "A3 Instance Core running in Americas" },
+    "usage_start_time": "2025-11-17T11:00:00Z",
+    "usage_end_time": "2025-11-17T12:00:00Z",
+    "project": { "id": "northwind-models", "name": "Northwind Models" },
+    "labels": [
+      { "key": "team", "value": "models" },
+      { "key": "cost_center", "value": "CC-200" }
+    ],
+    "cost": 38.40,
+    "currency": "USD",
+    "currency_conversion_rate": 1.0,
+    "usage": { "amount": 3600, "unit": "seconds", "amount_in_pricing_units": 1.0, "pricing_unit": "hour" },
+    "credits": [
+      { "name": "Sustained Usage Discount", "amount": -3.84, "type": "SUSTAINED_USAGE_DISCOUNT" }
+    ],
+    "cost_type": "regular"
+  },
+  {
+    "billing_account_id": "01ABCD-234567-89EFGH",
+    "service": { "id": "95FF-2EF5-5EA1", "description": "Cloud Storage" },
+    "sku": { "id": "E5F0-6A5D-B112", "description": "Standard Storage US Multi-region" },
+    "usage_start_time": "2025-11-17T00:00:00Z",
+    "usage_end_time": "2025-11-18T00:00:00Z",
+    "project": { "id": "northwind-ingestion", "name": "Northwind Ingestion" },
+    "labels": [
+      { "key": "team", "value": "ingestion" },
+      { "key": "cost_center", "value": "CC-300" }
+    ],
+    "cost": 3.75,
+    "currency": "USD",
+    "currency_conversion_rate": 1.0,
+    "usage": { "amount": 187904819200, "unit": "byte-seconds", "amount_in_pricing_units": 0.1875, "pricing_unit": "gibibyte month" },
+    "credits": [],
+    "cost_type": "regular"
+  },
+  {
+    "billing_account_id": "01ABCD-234567-89EFGH",
+    "service": { "id": "58CD-E7C3-72CA", "description": "BigQuery" },
+    "sku": { "id": "5490-F7B7-8DF6", "description": "Analysis (on-demand) usage in US Multi-region" },
+    "usage_start_time": "2025-11-17T10:00:00Z",
+    "usage_end_time": "2025-11-17T11:00:00Z",
+    "project": { "id": "northwind-api", "name": "Northwind API" },
+    "labels": [
+      { "key": "team", "value": "api" },
+      { "key": "cost_center", "value": "CC-400" }
+    ],
+    "cost": 6.25,
+    "currency": "USD",
+    "currency_conversion_rate": 1.0,
+    "usage": { "amount": 1099511627776, "unit": "bytes", "amount_in_pricing_units": 1.0, "pricing_unit": "tebibyte" },
+    "credits": [
+      { "name": "BigQuery Free Tier", "amount": -6.25, "type": "FREE_TIER" }
+    ],
+    "cost_type": "regular"
+  },
+  {
+    "billing_account_id": "01ABCD-234567-89EFGH",
+    "service": { "id": "6F81-5844-456A", "description": "Compute Engine" },
+    "sku": { "id": "9DE2-7B11-44AA", "description": "Network Egress via Carrier Peering Network - Americas" },
+    "usage_start_time": "2025-11-17T10:00:00Z",
+    "usage_end_time": "2025-11-17T11:00:00Z",
+    "project": { "id": "northwind-api", "name": "Northwind API" },
+    "labels": [
+      { "key": "team", "value": "api" },
+      { "key": "cost_center", "value": "CC-400" }
+    ],
+    "cost": 2.55,
+    "currency": "EUR",
+    "currency_conversion_rate": 1.08,
+    "usage": { "amount": 21474836480, "unit": "bytes", "amount_in_pricing_units": 20.0, "pricing_unit": "gibibyte" },
+    "credits": [],
+    "cost_type": "regular"
+  },
+  {
+    "billing_account_id": "01ABCD-234567-89EFGH",
+    "service": { "id": "6F81-5844-456A", "description": "Compute Engine" },
+    "sku": { "id": "CF4E-A0C7-E3BF", "description": "Commitment v1: A2 Cpu in Americas for 1 Year" },
+    "usage_start_time": "2025-11-01T00:00:00Z",
+    "usage_end_time": "2025-12-01T00:00:00Z",
+    "project": { "id": "northwind-platform", "name": "Northwind Platform" },
+    "labels": [
+      { "key": "team", "value": "platform" },
+      { "key": "cost_center", "value": "CC-100" }
+    ],
+    "cost": 5875.20,
+    "currency": "USD",
+    "currency_conversion_rate": 1.0,
+    "usage": { "amount": 0, "unit": "seconds", "amount_in_pricing_units": 0.0, "pricing_unit": "hour" },
+    "credits": [],
+    "cost_type": "regular"
+  }
+]
