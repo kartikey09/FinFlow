@@ -2,7 +2,7 @@ package io.finflow.chaosapi.chaos;
 
 import org.springframework.stereotype.Component;
 import java.util.concurrent.ThreadLocalRandom; //Java's random number generator,
-// specifically designed for multi-threaded applications (like web servers handling
+// specifically designed for multi-threaded applications like web servers handling
 // hundreds of users at once
 
 

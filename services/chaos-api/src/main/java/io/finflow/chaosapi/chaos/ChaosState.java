@@ -2,6 +2,21 @@ package io.finflow.chaosapi.chaos;
 
 import org.springframework.stereotype.Component;
 
+/**
+ * Why we use Atomic variables (AtomicBoolean, AtomicInteger) instead of standard primitives:
+ *
+ * Spring Boot's embedded Tomcat server is multithreaded. If 100 users hit the API at the
+ * exact same millisecond, Tomcat spins up 100 separate threads to handle them simultaneously.
+ *
+ * If Thread A (the Controller) tries to write a new value to a standard boolean at the
+ * exact same microsecond that Thread B (the Decider) is trying to read it, Java can
+ * experience a "Race Condition," resulting in corrupted memory reads or application crashes.
+ *
+ * Atomic variables (from java.util.concurrent) solve this by locking the memory location
+ * at the hardware level for a fraction of a nanosecond. If a thread is writing, all
+ * reading threads are forced to wait until the write is 100% complete, guaranteeing
+ * thread safety and preventing data corruption under heavy traffic.
+ */
 //special versions of Java variables designed for multithreaded environments
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -87,20 +102,4 @@ public class ChaosState {
     public void setFaultRate(int rate){
         faultRate.set(rate);
     }
-
-    /**
-     * Why we use Atomic variables (AtomicBoolean, AtomicInteger) instead of standard primitives:
-     *
-     * Spring Boot's embedded Tomcat server is multithreaded. If 100 users hit the API at the
-     * exact same millisecond, Tomcat spins up 100 separate threads to handle them simultaneously.
-     *
-     * If Thread A (the Controller) tries to write a new value to a standard boolean at the
-     * exact same microsecond that Thread B (the Decider) is trying to read it, Java can
-     * experience a "Race Condition," resulting in corrupted memory reads or application crashes.
-     *
-     * Atomic variables (from java.util.concurrent) solve this by locking the memory location
-     * at the hardware level for a fraction of a nanosecond. If a thread is writing, all
-     * reading threads are forced to wait until the write is 100% complete, guaranteeing
-     * thread safety and preventing data corruption under heavy traffic.
-     */
 }

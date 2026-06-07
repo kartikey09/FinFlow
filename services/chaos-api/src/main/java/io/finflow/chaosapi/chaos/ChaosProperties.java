@@ -26,8 +26,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 
 
 /**
- * It tells Spring Boot: "When the app starts up, open application.yml, loof for the block that starts with chaos:
- * and automatically push those values into the variables below.
+ * It tells Spring Boot: "When the app starts up, open application.yml, look for the block that starts with chaos:
+ * and automatically push those values into the variables below."
  */
 @ConfigurationProperties(prefix = "chaos")
 public record ChaosProperties ( //defining a native Java record - perfect for holding immutable data
