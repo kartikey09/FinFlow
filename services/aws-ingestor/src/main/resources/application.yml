@@ -1,0 +1,60 @@
+spring:
+  application:
+    name: aws-ingestor
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/finflow
+    username: finflow
+    password: finflow
+
+  jpa:
+    hibernate:
+      ddl-auto: none          # Flyway owns the schema, never Hibernate
+    open-in-view: false
+    properties:
+      hibernate:
+        default_schema: ingestion
+
+  flyway:
+    enabled: true
+    schemas: ingestion
+    default-schema: ingestion
+    create-schemas: true      # create the ingestion schema if Day 1 init didn't
+    locations: classpath:db/migration
+
+  kafka:
+    bootstrap-servers: localhost:29092   # host-facing listener from Day 1 compose
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+    consumer:
+      group-id: aws-ingestor
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "io.finflow.*"
+
+server:
+  port: 8081
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
+      probes:
+        enabled: true
+
+finflow:
+  chaos-api:
+    base-url: http://localhost:9000
+
+logging:
+  level:
+    io.finflow.ingestion: INFO
+  pattern:
+    console: "%d{HH:mm:ss} %-5level %cyan(%logger{0}) - %msg%n"

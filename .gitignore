@@ -13,3 +13,7 @@ pgdata/
 
 # Local env
 .env
+
+infra/docker/postgres-data/
+infra/docker/kafka-data/
+infra/docker/pgadmin-data/

@@ -42,11 +42,13 @@ subprojects {
 
     // Common compile options
     tasks.withType<JavaCompile> {
-        options.compilerArgs.addAll(listOf(
-            "-parameters",       // preserve parameter names for Spring
-            "-Xlint:unchecked",
-            "-Xlint:deprecation"
-        ))
+        options.compilerArgs.addAll(
+            listOf(
+                "-parameters",       // preserve parameter names for Spring
+                "-Xlint:unchecked",
+                "-Xlint:deprecation"
+            )
+        )
         options.encoding = "UTF-8"
     }
 //

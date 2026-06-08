@@ -23,7 +23,9 @@ pluginManagement {
 include("services:chaos-api")
 //
 // Day 5 (first service shell):
-// include("services:aws-ingestor")
+include("shared:common")
+// include("shared:outbox") // (Assuming the second line is the outbox module based on your week 2 plan)
+ include("services:aws-ingestor")
 //
 // Week 2 (outbox library + Debezium):
 // include("shared:outbox-starter")
