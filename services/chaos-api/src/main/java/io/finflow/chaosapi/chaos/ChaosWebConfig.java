@@ -1,7 +1,7 @@
 package io.finflow.chaosapi.chaos;
 
 //EnableConfigurationProperties - Activates ChaosProperties binding from application.yml
-//without this it wouldnt know how to link chaosProperties to application.yml file
+//without this it wouldn't know how to link chaosProperties to application.yml file
 // activates that YAML-to-Java translation
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
