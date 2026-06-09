@@ -27,6 +27,10 @@ CREATE INDEX IF NOT EXISTS idx_outbox_event_created_at ON outbox_event (created_
 COMMENT ON TABLE outbox_event IS
     'Transactional outbox: events written atomically with business state; Debezium tails these via CDC (Day 7).';
 
+-- This is a Flyway migrations file. when a new person pull and runs this repo, the flyway checks the
+-- flyway_schema_history to see it this DB was ever created. Flyway writes a row into its flyway_schema_history table
+-- that essentially says: "On June 9, 2026, I successfully executed V2__create_outbox_event_table.sql. Do not run
+-- it again."
 
 -- The columns in this table are not arbitrary; they are strictly designed to match the expectations of Debezium's
 -- "Outbox Event Router":
