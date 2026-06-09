@@ -4,6 +4,10 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
@@ -47,19 +51,6 @@ public class OutboxEvent {
     @Column(name = "created_at", nullable = false)
     private OffsetDateTime createdAt;
 
-    protected OutboxEvent(){
-        //JPA, erase as lombok can take care of this
-    }
-
-    public OutboxEvent(UUID id, String aggregateType, String aggregateId,
-                       String type, String payload, OffsetDateTime createdAt) {
-        this.id = id;
-        this.aggregateType = aggregateType;
-        this.aggregateId = aggregateId;
-        this.type = type;
-        this.payload = payload;
-        this.createdAt = createdAt;
-    }
 }
 
 /*

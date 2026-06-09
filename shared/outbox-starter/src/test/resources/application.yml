@@ -1,0 +1,11 @@
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: none          # Flyway owns the schema, not Hibernate
+    open-in-view: false
+  flyway:
+    enabled: true
+    locations: classpath:db/outbox   # run the shipped production migration
+logging:
+  level:
+    io.finflow.outbox: INFO

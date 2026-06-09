@@ -38,6 +38,10 @@ subprojects {
             events("passed", "skipped", "failed")
             showStandardStreams = false
         }
+        // Docker Desktop 29.x requires Docker API >= 1.40, but the docker-java client
+        // bundled with Testcontainers defaults to 1.32. docker-java reads the version
+        // from the "api.version" system property, so pin it for the Testcontainers JVM.
+        systemProperty("api.version", "1.44")
     }
 
     // Common compile options
