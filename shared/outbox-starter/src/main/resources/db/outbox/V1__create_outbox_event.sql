@@ -1,16 +1,12 @@
--- The transactional outbox table.
+-- The Transactional Outbox table.
 --
--- Services write a row here in the SAME transaction as their business change,
--- so the event and the state change commit (or roll back) atomically. Day 7's
--- Debezium connector tails Postgres' write-ahead log, sees new rows here, and
--- publishes them to Kafka — the service itself never touches Kafka.
+-- Your app saves an event here at the exact same time it updates its main data.
+-- Because both saves happen in one transaction, they either succeed together or
+-- fail together (no data is lost or duplicated).
 --
--- Column design matches Debezium's Outbox Event Router conventions (Day 7 maps
--- these via the connector config):
---   aggregate_type -> routes the event to a Kafka topic
---   aggregate_id   -> becomes the Kafka message key (preserves per-aggregate ordering)
---   type           -> the event type, carried as a header
---   payload        -> the event body (jsonb -> Kafka message value)
+-- A background tool called Debezium will read this table
+-- and safely copy these events over to Kafka. Your app never talks to Kafka directly!
+
 
 CREATE TABLE IF NOT EXISTS outbox_event (
     id             UUID         PRIMARY KEY,
@@ -23,6 +19,10 @@ CREATE TABLE IF NOT EXISTS outbox_event (
 
 -- Helps any retention/cleanup job and keeps WAL-replay ordering observable.
 CREATE INDEX IF NOT EXISTS idx_outbox_event_created_at ON outbox_event (created_at);
+-- Creates a Database Index on the created_at column.
+-- Why it matters: Outbox tables grow massively huge very quickly. In the future, you will likely write a cleanup script that says,
+-- "Delete all events older than 7 days." Without an index, Postgres would have to read every single row in the massive table to find the old ones.
+-- With this index, it can find and delete them almost instantly.
 
 COMMENT ON TABLE outbox_event IS
     'Transactional outbox: events written atomically with business state; Debezium tails these via CDC (Day 7).';
@@ -47,4 +47,6 @@ COMMENT ON TABLE outbox_event IS
 -- as a header so consumers know what kind of event they are receiving before parsing the body.
 --
 -- payload (JSONB): The actual meat of the event (e.g., the raw billing data or the URL to the S3 bucket).
--- This becomes the main body of the Kafka message.
+-- This becomes the main body of the Kafka message. JSONB is a special PostgreSQL data type that stores
+-- JSON text in a highly compressed, optimized binary format. This allows you to store any shape of
+-- data without having to alter the table structure later.

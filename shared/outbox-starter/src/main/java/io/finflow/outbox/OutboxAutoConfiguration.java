@@ -21,6 +21,8 @@ import org.springframework.context.annotation.Bean;
  * service's own default entity scanning and break its entities.
  */
 @AutoConfiguration(after = JacksonAutoConfiguration.class)
+// It tells Spring: "Only execute this class if the target microservice actually has JPA database
+// tools (EntityManager) and the Jackson JSON library (ObjectMapper) installed on its hard drive."
 @ConditionalOnClass({ EntityManager.class, ObjectMapper.class })
 public class OutboxAutoConfiguration {
 
@@ -38,6 +40,7 @@ public class OutboxAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    //"Only build this default OutboxAppender if the developer hasn't built their own custom version of it."
     public OutboxAppender outboxAppender(OutboxEventRepository repository, ObjectMapper objectMapper) {
         return new OutboxAppender(repository, objectMapper);
     }

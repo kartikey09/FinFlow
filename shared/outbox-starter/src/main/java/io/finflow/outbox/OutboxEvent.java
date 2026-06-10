@@ -15,14 +15,23 @@ import java.time.OffsetDateTime;
 import java.util.UUID;
 
 /**
- * One row of the transactional outbox. Maps to the outbox_event table created
- * by V1__create_outbox_event.sql.
+ * The Java blueprint for the Transactional Outbox database table.
  *
- * The payload is a String annotated with @JdbcTypeCode(SqlTypes.JSON) so
- * Hibernate binds it to the Postgres jsonb column directly — we keep it as a
- * String (already-serialized JSON) rather than a typed object so the outbox
- * stays event-shape-agnostic: any service can write any event without this
- * library knowing the event's class.
+ * What this does:
+ * This class maps directly to the `outbox_event` table in PostgreSQL. Every time
+ * your application creates one of these objects and saves it, Hibernate translates
+ * it into a new database row.
+ * wrote the SQL to create the outbox_event table inside your PostgreSQL database.
+ * However, your Java application doesn't natively speak SQL, it needs "Translator" or "Bridge"
+ * so that when your Java code wants to save an event, it knows exactly which columns exist and
+ * what data types they require.It uses the Java Persistence API (JPA) and Hibernate. It mirrors the SQL table we made.
+ *
+ * The clever design choice:
+ * The `payload` (the actual event data) is stored as a simple text String instead
+ * of a specific Java object (like a BillingEvent). This keeps this outbox library
+ * completely generic. Any microservice can convert its unique data into a JSON
+ * string and save it here, and this library never needs to know or care what the
+ * data actually looks like.
  */
 
 
@@ -35,6 +44,10 @@ public class OutboxEvent {
     @Id
     private UUID id;
 
+    // These three fields map directly to the text columns in your SQL table. The @Column(name = "...") annotation
+    // is only strictly necessary if the Java variable name is different from the database column name
+    // (e.g., aggregateType vs aggregate_type), but adding nullable = false ensures Java will throw an error
+    // if you try to save a blank value, acting as a great safety net.
     @Column(name = "aggregate_type", nullable = false)
     private String aggregateType;
 
@@ -44,7 +57,9 @@ public class OutboxEvent {
     @Column(nullable = false)
     private String type;
 
-    @JdbcTypeCode(SqlTypes.JSON)
+    @JdbcTypeCode(SqlTypes.JSON)//Hibernate 6 feature.
+    // It automatically translates the raw Java text string into binary JSON when saving to the database,
+    // and translates it back to text when reading.
     @Column(nullable = false, columnDefinition = "jsonb")
     private String payload;
 
