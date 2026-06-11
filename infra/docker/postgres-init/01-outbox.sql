@@ -18,8 +18,9 @@
 -- Destroy your database entirely using docker compose down -v (which wipes the volume clean) and restart it.
 --  Or, simply open pgAdmin, paste this SQL text into the query tool, and run it manually.
 
+CREATE SCHEMA IF NOT EXISTS ingestion;
 
-CREATE TABLE IF NOT EXISTS public.outbox_event(
+CREATE TABLE IF NOT EXISTS ingestion.outbox_event(
     id             UUID         PRIMARY KEY,
     aggregate_type VARCHAR(255) NOT NULL,
     aggregate_id   VARCHAR(255) NOT NULL,
@@ -28,4 +29,4 @@ CREATE TABLE IF NOT EXISTS public.outbox_event(
     created_at     TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_outbox_event_created_at ON public.outbox_event(created_at);
+CREATE INDEX IF NOT EXISTS idx_outbox_event_created_at ON ingestion.outbox_event(created_at);

@@ -14,10 +14,10 @@
     "plugin.name": "pgoutput",
     "slot.name": "finflow_outbox_slot",
     "publication.name": "finflow_outbox_pub",
-    "publication.autocreate.mode": "filtered",
+    "publication.autocreate.mode": "all_tables",
 
-    "table.include.list": "public.outbox_event",
-    "snapshot.mode": "schema_only",
+    "table.include.list": "ingestion.outbox_event",
+    "snapshot.mode": "initial",
     "tombstones.on.delete": "false",
     "heartbeat.interval.ms": "10000",
 
