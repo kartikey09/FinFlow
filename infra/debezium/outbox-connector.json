@@ -1,0 +1,39 @@
+{
+  "name": "finflow-outbox-connector",
+  "config": {
+    "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+    "tasks.max": "1",
+
+    "database.hostname": "postgres",
+    "database.port": "5432",
+    "database.user": "finflow",
+    "database.password": "finflow",
+    "database.dbname": "finflow",
+    "topic.prefix": "finflow",
+
+    "plugin.name": "pgoutput",
+    "slot.name": "finflow_outbox_slot",
+    "publication.name": "finflow_outbox_pub",
+    "publication.autocreate.mode": "filtered",
+
+    "table.include.list": "public.outbox_event",
+    "snapshot.mode": "schema_only",
+    "tombstones.on.delete": "false",
+    "heartbeat.interval.ms": "10000",
+
+    "key.converter": "org.apache.kafka.connect.storage.StringConverter",
+    "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "value.converter.schemas.enable": "false",
+
+    "transforms": "outbox",
+    "transforms.outbox.type": "io.debezium.transforms.outbox.EventRouter",
+    "transforms.outbox.table.field.event.id": "id",
+    "transforms.outbox.table.field.event.key": "aggregate_id",
+    "transforms.outbox.table.field.event.type": "type",
+    "transforms.outbox.table.field.event.timestamp": "created_at",
+    "transforms.outbox.table.field.event.payload": "payload",
+    "transforms.outbox.table.expand.json.payload": "true",
+    "transforms.outbox.route.by.field": "aggregate_type",
+    "transforms.outbox.route.topic.replacement": "finflow.events.${routedByValue}"
+  }
+}
