@@ -16,8 +16,17 @@ pretty() { if have_jq; then jq .; else cat; fi; }
 # This until loop acts like a ping. It knocks on the door (curl) every 2 seconds,
 # prints a dot (.), and waits until it finally gets a successful response before moving on.
 echo "› Waiting for Kafka Connect at $CONNECT_URL ..."
+MAX_WAIT="${MAX_WAIT:-120}"   # seconds before giving up
+waited=0
 until curl -fsS "$CONNECT_URL/connectors" >/dev/null 2>&1; do
-  printf '.'; sleep 2;
+  if [ "$waited" -ge "$MAX_WAIT" ]; then
+    echo
+    echo "✗ Kafka Connect did not respond at $CONNECT_URL after ${MAX_WAIT}s." >&2
+    echo "  Is the container running?  Start it with:  docker compose up -d connect" >&2
+    echo "  Check its logs with:       docker logs -f finflow-connect" >&2
+    exit 1
+  fi
+  printf '.'; sleep 2; waited=$((waited + 2));
 done
 echo " up."
 

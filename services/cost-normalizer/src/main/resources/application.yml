@@ -1,0 +1,43 @@
+server:
+  # 8081 aws-ingestor · 8082 gcp-ingestor · 8083 Kafka Connect (infra) · 8085 cost-normalizer
+  port: 8085
+
+spring:
+  application:
+    name: cost-normalizer
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/finflow
+    username: finflow
+    password: finflow
+
+  jpa:
+    hibernate:
+      ddl-auto: none
+    open-in-view: false
+    properties:
+      hibernate:
+        default_schema: normalizer
+
+  flyway:
+    enabled: true
+    default-schema: normalizer
+    schemas: normalizer
+    locations: classpath:db/migration
+
+  kafka:
+    bootstrap-servers: localhost:29092      # external listener (service runs on host via bootRun)
+    consumer:
+      group-id: cost-normalizer
+      auto-offset-reset: earliest
+      enable-auto-commit: false             # manual ack — offset committed only after handling
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      properties:
+        metadata.max.age.ms: 10000          # discover new finflow.events.* topics quickly (dev)
+    listener:
+      ack-mode: manual
+
+logging:
+  level:
+    io.finflow.normalizer: INFO
