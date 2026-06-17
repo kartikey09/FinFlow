@@ -89,9 +89,9 @@ finflow/
 ## Roadmap
 
 - [x] **Day 1** — Repo skeleton + Docker Compose infrastructure
-- [ ] **Days 2-4** — Chaos API (AWS + GCP fake endpoints with fault injection)
-- [ ] **Day 5** — First Spring Boot service shell (`aws-ingestor`)
-- [ ] **Week 2** — Outbox pattern + Debezium CDC + atomicity tests
+- [x] **Days 2-4** — Chaos API (AWS + GCP fake endpoints with fault injection)
+- [x] **Day 5** — First Spring Boot service shell (`aws-ingestor`)
+- [x] **Week 2** — Outbox pattern + Debezium CDC + atomicity tests
 - [ ] **Week 3** — Real ingestion + normalization + dashboard
 - [ ] **Week 4** — Saga orchestration + compensation + recovery
 - [ ] **Week 5** — Resilience4j + Prometheus + Grafana + Jaeger + chaos suite
