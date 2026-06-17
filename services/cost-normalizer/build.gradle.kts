@@ -23,4 +23,9 @@ dependencies {
     testImplementation("org.springframework.boot:spring-boot-testcontainers")
     testImplementation("org.testcontainers:junit-jupiter")
     testImplementation("org.testcontainers:postgresql")
+
+    testImplementation("org.testcontainers:kafka")
+    testImplementation("io.debezium:debezium-testing-testcontainers:2.7.0.Final")
+
+    testRuntimeOnly("com.h2database:h2")
 }
