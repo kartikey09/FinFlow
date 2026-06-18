@@ -10,7 +10,11 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 
 import java.time.Duration;
 
+// @AutoConfiguration tells Spring Boot: "Look at this file during startup and
+// wire up these beans automatically."
 @AutoConfiguration
+// Turn this job on by default but if a specific microservice sets 'finflow.outbox.retention.enabled=false' in its
+// application.yml file do not load this
 @ConditionalOnProperty(
         prefix = "finflow.outbox.retention",
         name = "enabled",
