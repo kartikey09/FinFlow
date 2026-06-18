@@ -1,1 +1,2 @@
 io.finflow.outbox.OutboxAutoConfiguration
+io.finflow.outbox.OutboxRetentionAutoConfiguration

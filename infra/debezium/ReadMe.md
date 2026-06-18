@@ -38,7 +38,17 @@ Dictates how the extracted data is serialized into byte arrays before being push
 * **`value.converter`** (`JsonConverter`): We want the message payload sent as JSON.
 * **`value.converter.schemas.enable`** (`false`): By default, Debezium wraps every message in a massive, heavy JSON schema defining the table structure. Setting this to false strips all that away, sending only the clean, raw data.
 
-## 6. The Magic: Single Message Transform (SMT)
+## 6. Dead Letter Queue (DLQ) & Error Handling
+Dictates how Kafka Connect behaves when it encounters a malformed or "poison" record it cannot process, ensuring a single bad database row does not crash the entire data pipeline.
+
+* **`errors.tolerance`** (`all`): Changes the default failure policy from crashing the entire connector to quarantining the bad record. It allows the connector to drop the failed row from the main pipeline and continue processing the next healthy row.
+* **`errors.deadletterqueue.topic.name`** (`finflow.dlq.outbox-connector`): Defines the specific Kafka topic (the DLQ) where failed records are safely routed instead of being permanently lost.
+* **`errors.deadletterqueue.topic.replication.factor`** (`1`): Forces the auto-creation of the DLQ topic to use a replication factor of 1. This is strictly required for local development since our Docker Compose stack only runs a single Kafka broker.
+* **`errors.deadletterqueue.context.headers.enable`** (`true`): Appends diagnostic metadata headers to the failed message inside the DLQ. This includes the exact Java exception and stack trace, providing a built-in autopsy report for the failure.
+* **`errors.log.enable`** (`true`): Instructs Kafka Connect to print explicit `ERROR` warnings directly to the `finflow-connect` Docker container logs whenever a record is routed to the DLQ.
+* **`errors.log.include.messages`** (`true`): Injects the actual physical JSON payload of the corrupted record directly into the terminal logs alongside the error. This allows you to instantly spot the bad data without having to manually open Kafka UI and hunt through the DLQ topic.
+
+## 7. The Magic: Single Message Transform (SMT)
 By default, Debezium sends a massive payload containing the "before" and "after" state of the entire database row. We don't want that. We want a clean domain event. The **Outbox Event Router SMT** acts as an interceptor, reshaping the raw database row into a perfect Kafka message.
 
 * **`transforms`** (`outbox`): Activates the outbox transform plugin.

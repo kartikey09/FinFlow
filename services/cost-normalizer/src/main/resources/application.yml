@@ -35,6 +35,12 @@ spring:
       value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       properties:
         metadata.max.age.ms: 10000          # discover new finflow.events.* topics quickly (dev)
+    producer:
+      # Needed so the dead-letter recoverer can re-publish a failed record to <topic>.DLT.
+      # We forward the raw String key/value untouched, so String serializers on both sides.
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
     listener:
       ack-mode: manual
 
