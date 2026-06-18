@@ -20,11 +20,21 @@ import java.time.Duration;
 @EnableScheduling
 public class OutboxRetentionAutoConfiguration {
 
+    // tells spring how to build the OutboxRetentionJob object.
     @Bean
+    // Another escape hatch. It says: "If the developer wrote their own custom
+    // OutboxRetentionJob bean manually, use theirs. If they didn't, build this
+    // default one." It prevents application crashes due to duplicate beans.
     @ConditionalOnMissingBean
-    public OutboxRetentionJob outboxRetentionJob(
+    public OutboxRetentionJob outboxRetentionJob(  //paraemter injection
             OutboxEventRepository repository,
             @Value("${finflow.outbox.retention.duration:7d}") Duration retention){
         return new OutboxRetentionJob(repository, retention);
     }
 }
+
+// @Value("${finflow.outbox.retention.duration:7d}" line -
+// Looks in the application.yml for a property defining the retention
+// duration. If it doesn't find one, it defaults to "7d" (7 days).
+// Spring Boot natively understands the "7d" string and converts it
+// straight into a java.time.Duration object.
