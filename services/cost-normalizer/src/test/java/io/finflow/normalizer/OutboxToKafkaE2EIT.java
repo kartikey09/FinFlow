@@ -1,4 +1,4 @@
-package io.finflow.normalizer.consumer;
+package io.finflow.normalizer;
 
 // Imports for Testcontainers, Kafka clients, JUnit, and Awaitility
 import io.debezium.testing.testcontainers.ConnectorConfiguration;
