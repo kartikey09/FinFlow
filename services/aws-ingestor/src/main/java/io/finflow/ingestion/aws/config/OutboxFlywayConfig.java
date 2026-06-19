@@ -58,11 +58,17 @@ public class OutboxFlywayConfig {
                 // 'flyway_schema_history' table, we tell it to write its version
                 // logs into 'flyway_schema_history_outbox'. This creates an
                 // isolated, parallel timeline for the shared library.
-                .table("flyway_schema_history_outbox")
+                .table("flyway_schema_history_outbox")               // independent timeline -> no V1 clash
                 .locations("classpath:db/outbox")
-                .baselineOnMigrate(true)
+                .baselineOnMigrate(true)                             // coexist with the dev-init table
+                // Load the configuration and fire the SQL to the database.
                 .load()
                 .migrate();
         log.info("Outbox schema migration applied (public.outbox_event)");
     }
 }
+
+/// `baselineOnMigrate(true)` tells Flyway-
+// "If the table already exists, don't crash. Just mark V1 as 'done' and move on."
+// To run and check Debezium we made a local script that manually created the outbox table
+// so it alrady exists thats why this is set to true.
