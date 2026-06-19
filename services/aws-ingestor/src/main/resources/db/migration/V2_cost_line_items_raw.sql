@@ -13,6 +13,7 @@
 -- Schema-qualified to `ingestion` so it lands there regardless of Flyway's
 -- default schema. (The shared outbox table lives in `public` — see orm.xml.)
 
+
 CREATE TABLE IF NOT EXISTS ingestion.cost_line_items_raw (
                                                              line_item_id      VARCHAR(128)   PRIMARY KEY,
     payer_account_id  VARCHAR(32),
@@ -31,3 +32,26 @@ CREATE INDEX IF NOT EXISTS idx_cost_line_items_raw_usage_account
 
 COMMENT ON TABLE ingestion.cost_line_items_raw IS
     'Raw AWS CUR line items as pulled from the Chaos API; line_item_id is the idempotency gate.';
+
+
+/** ============================================================================
+ * ARCHITECTURAL OVERVIEW: THE RAW LANDING ZONE (DATABASE MIGRATION)
+ * ============================================================================
+ * What this file does:
+ * This is a Flyway migration script. When the application starts, Flyway runs
+ * this script to physically build the PostgreSQL table that acts as the front
+ * door for all incoming AWS billing data.
+ *
+ * Why we built it this way (The Architectural Strategy):
+ * 1. Schema Isolation: We explicitly place this in the `ingestion` schema
+ * rather than the default `public` schema. This keeps the ingestor's private
+ * raw data separated from shared infrastructure tables (like the outbox).
+ * 2. The Idempotency Gate (Duplicate Protection): Networks are unreliable. If
+ * the application crashes and tries to download the same page of AWS data
+ * twice, the `line_item_id` PRIMARY KEY physically blocks the duplicates
+ * from being saved. This ensures we never double-charge a customer.
+ * 3. The Source of Truth (Durability): This table holds the exact, untampered
+ * data provided by AWS. If our downstream normalizer service ever has a bug,
+ * we can always query this table to see the true, original AWS charge.
+ * ============================================================================
+ */
