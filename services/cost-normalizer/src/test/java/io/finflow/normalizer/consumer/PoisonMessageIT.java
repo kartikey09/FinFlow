@@ -42,6 +42,7 @@ import static org.awaitility.Awaitility.await;
  */
 @SpringBootTest(properties = {
         "spring.kafka.bootstrap-servers=${spring.embedded.kafka.brokers}",
+        "spring.kafka.consumer.group-id=poison-test-group",
         "spring.datasource.url=jdbc:h2:mem:poison;MODE=PostgreSQL;DB_CLOSE_DELAY=-1",
         "spring.datasource.driver-class-name=org.h2.Driver",
         "spring.datasource.username=sa",

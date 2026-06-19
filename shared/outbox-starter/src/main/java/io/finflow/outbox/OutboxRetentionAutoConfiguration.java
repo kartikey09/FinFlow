@@ -30,7 +30,7 @@ public class OutboxRetentionAutoConfiguration {
     // OutboxRetentionJob bean manually, use theirs. If they didn't, build this
     // default one." It prevents application crashes due to duplicate beans.
     @ConditionalOnMissingBean
-    public OutboxRetentionJob outboxRetentionJob(  //paraemter injection
+    public OutboxRetentionJob outboxRetentionJob(  //parameter injection
             OutboxEventRepository repository,
             @Value("${finflow.outbox.retention.duration:7d}") Duration retention){
         return new OutboxRetentionJob(repository, retention);

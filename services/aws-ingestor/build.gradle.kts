@@ -8,11 +8,18 @@ plugins {
 
 dependencies {
     implementation(project(":shared:common"))
+    implementation(project(":shared:outbox-starter"))
 
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
+    // aop - AspectJ - required to process Resilience4j annotations
+    implementation("org.springframework.boot:spring-boot-starter-aop")
     implementation("org.springframework.kafka:spring-kafka")
+
+    // adds fault tolerance capabilities to spring.
+    // enables core patterns like retires, rate limiters, circuit breakers
+    implementation("io.github.resilience4j:resilience4j-spring-boot3:2.2.0")
 
     runtimeOnly("org.postgresql:postgresql")
     implementation("org.flywaydb:flyway-core")
