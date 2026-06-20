@@ -54,6 +54,7 @@ services:
       - "log_min_duration_statement=500"
       - "-c"
       - "log_line_prefix=%t [%p]: [%l-1] user=%u,db=%d,app=%a "
+    stop_grace_period: 60s
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U finflow -d finflow"]
       interval: 5s
