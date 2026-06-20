@@ -17,3 +17,4 @@ pgdata/
 infra/docker/postgres-data/
 infra/docker/kafka-data/
 infra/docker/pgadmin-data/
+infra/docker/postgres-data/
