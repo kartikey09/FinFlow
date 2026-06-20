@@ -41,7 +41,7 @@ public class AwsCurClient {
         return restClient.get()
                 // dynamically builds the URI
                 .uri(uriBuilder -> {
-                    uriBuilder.path("/aws/cost-and-uasge-report");
+                    uriBuilder.path("/aws/cost-and-usage-report");
                     // if we have a token(not on the first page) then append it in the query as param
                     if (nextToken != null && !nextToken.isBlank()){
                         uriBuilder.queryParam("nextToken", nextToken);

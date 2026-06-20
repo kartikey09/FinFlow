@@ -54,8 +54,8 @@ finflow:
     base-url: http://localhost:9000
   aws:
     ingest:
-      poll-interval: 30s   # @Scheduled fixedDelay between polls (dev)
-      initial-delay: 10s   # warm-up before the first poll
+      poll-interval: PT30S   # @Scheduled fixedDelay between polls (dev)
+      initial-delay: PT10S   # warm-up before the first poll
 
 # Bounded retry for the Chaos API poll. The Chaos API injects ~20% 503s;
 # retry those (and connection errors), but never a 4xx (it won't heal).

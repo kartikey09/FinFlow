@@ -44,8 +44,8 @@ public class AwsIngestScheduler {
     }
 
     @Scheduled(
-            fixedDelayString = "${finflow.aws.ingest.poll-interval:30s}",
-            initialDelayString = "${finflow.aws.ingest.initial-delay:10s}")
+            fixedDelayString = "${finflow.aws.ingest.poll-interval:PT30S}",
+            initialDelayString = "${finflow.aws.ingest.initial-delay:PT10S}")
     public void poll(){
         try{
             String token = ingestService.currentToken();
