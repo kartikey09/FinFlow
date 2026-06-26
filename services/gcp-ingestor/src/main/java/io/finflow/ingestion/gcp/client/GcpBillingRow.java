@@ -7,6 +7,23 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.UUID;
 
+/**
+ * One row of a GCP Cloud Billing export, as the ingestor sees it.
+ *
+ * <p>The contrast with AWS is the whole point of Day 12. AWS CUR was FLAT — ~21
+ * top-level columns. GCP is NESTED: {@code service}, {@code sku}, {@code project},
+ * and {@code usage} are sub-objects and {@code credits} is an ARRAY. So this is a
+ * record composed of small nested records plus two {@code List}s. GCP's names are
+ * mostly legal Java identifiers, so far fewer {@code @JsonProperty}s than AWS —
+ * only the snake_case fields ({@code billing_account_id}, {@code usage_start_time},
+ * {@code currency_conversion_rate}, {@code cost_type}).
+ *
+ * <p>This record also owns the two pieces of genuinely GCP-specific logic:
+ * {@link #committedUsageDiscount()} (walk the credits array) and
+ * {@link #costInUsd()} (apply the currency conversion). Keeping them as methods
+ * here makes them trivially unit-testable.
+ */
+
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record GcpBillingRow(
 
