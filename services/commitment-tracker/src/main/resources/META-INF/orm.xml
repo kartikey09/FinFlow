@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<entity-mappings xmlns="https://jakarta.ee/xml/ns/persistence/orm"
+                 xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                 xsi:schemaLocation="https://jakarta.ee/xml/ns/persistence/orm https://jakarta.ee/xml/ns/persistence/orm/orm_3_0.xsd"
+                 version="3.0">
+    <!--
+      Pin the SHARED outbox table to `public` (Debezium tails public.outbox_event).
+      Identical override to the three earlier adopters (aws-ingestor, gcp-ingestor,
+      cost-normalizer). The FOURTH repetition — the strongest case yet for folding
+      this into the locked outbox-starter. See DAY14-MANIFEST.
+    -->
+    <entity class="io.finflow.outbox.OutboxEvent">
+        <table name="outbox_event" schema="public"/>
+    </entity>
+</entity-mappings>
