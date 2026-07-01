@@ -32,7 +32,7 @@ include("shared:common")
 // Week 3 (ingestion + read side):
  include("services:gcp-ingestor")
  include("services:cost-normalizer")
-// include("services:commitment-tracker")
+ include("services:commitment-tracker")
 // include("services:query-api")
 //
 // Week 4 (saga):
