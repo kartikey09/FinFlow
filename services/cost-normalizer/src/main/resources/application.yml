@@ -23,7 +23,11 @@ spring:
     enabled: true
     default-schema: normalizer
     schemas: normalizer
+    create-schemas: true                   # ensure 'normalizer' exists on a fresh volume
     locations: classpath:db/migration
+    # classpath:db/outbox is intentionally NOT listed here — its V1 would collide
+    # with this service's V1__baseline. It runs on a SEPARATE Flyway history
+    # timeline in OutboxFlywayConfig (same trick as the ingestors).
 
   kafka:
     bootstrap-servers: localhost:29092      # external listener (service runs on host via bootRun)
@@ -36,13 +40,19 @@ spring:
       properties:
         metadata.max.age.ms: 10000          # discover new finflow.events.* topics quickly (dev)
     producer:
-      # Needed so the dead-letter recoverer can re-publish a failed record to <topic>.DLT.
-      # We forward the raw String key/value untouched, so String serializers on both sides.
+      # The DLT recoverer (Day 10) republishes failed records as raw strings.
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
       acks: all
     listener:
       ack-mode: manual
+
+# Tenant assigned to every normalized line item. Single-tenant in MVP; ready for
+# multi-tenant later (just inject from auth / request context).
+finflow:
+  tenant-id: default
+  dedup:
+    cache-size: 100000                      # L1 Caffeine cache: last 100k event ids
 
 logging:
   level:

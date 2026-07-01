@@ -1,52 +1,73 @@
 package io.finflow.normalizer.consumer;
 
 import io.finflow.normalizer.idempotency.EventDeduplicator;
+import io.finflow.normalizer.normalize.NormalizationService;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * Unit test of the idempotency decision: a seen event is skipped (no mark), a
- * new event is processed and marked. Mockito only — no Docker, no Spring.
- * (Calling handle() directly bypasses the @Transactional proxy, which is fine
- * for testing the branching logic; the transactional contract is covered by
- * EventDeduplicatorIT.)
+ * Day 13 replacement of the Day 9 handler test.
+ *
+ * <p>Three behaviors that matter:
+ *   1. New event: dedup-check returns false → normalize → mark.
+ *   2. Already-processed: dedup-check returns true → skip normalize AND skip mark.
+ *   3. Concurrent mark race: dedup short-circuits FIRST so normalize is skipped,
+ *      and an unexpected DataIntegrityViolation during mark would not be possible
+ *      in this path. (The handler's catch is defensive belt-and-suspenders only.)
  */
-@ExtendWith(MockitoExtension.class)
 class BillingEventHandlerTest {
 
-    @Mock
-    EventDeduplicator deduplicator;
-
-    @InjectMocks
-    BillingEventHandler handler;
+    private final EventDeduplicator dedup = mock(EventDeduplicator.class);
+    private final NormalizationService normalizer = mock(NormalizationService.class);
+    private final BillingEventHandler handler = new BillingEventHandler(dedup, normalizer);
 
     @Test
-    void skipsEventThatWasAlreadyProcessed() {
-        UUID id = UUID.randomUUID();
-        when(deduplicator.alreadyProcessed(id)).thenReturn(true);
+    void newEventIsNormalizedThenMarked() {
+        ConsumedEvent e = event();
+        when(dedup.alreadyProcessed(e.id())).thenReturn(false);
 
-        handler.handle(new ConsumedEvent(id, "RawBillingPagePulled", "billing", "{}"));
+        handler.handle(e);
 
-        verify(deduplicator, never()).markProcessed(any(), any());
+        verify(normalizer, times(1)).normalize(e);
+        verify(dedup, times(1)).markProcessed(e.id(), e.type());
     }
 
     @Test
-    void processesAndMarksANewEvent() {
-        UUID id = UUID.randomUUID();
-        when(deduplicator.alreadyProcessed(id)).thenReturn(false);
+    void alreadyProcessedEventIsSkipped() {
+        ConsumedEvent e = event();
+        when(dedup.alreadyProcessed(e.id())).thenReturn(true);
 
-        handler.handle(new ConsumedEvent(id, "RawBillingPagePulled", "billing", "{\"k\":\"v\"}"));
+        handler.handle(e);
 
-        verify(deduplicator).markProcessed(id, "RawBillingPagePulled");
+        verify(normalizer, never()).normalize(any());
+        verify(dedup, never()).markProcessed(any(), any());
+    }
+
+    @Test
+    void concurrentMarkRaceIsToleratedNotPropagated() {
+        ConsumedEvent e = event();
+        when(dedup.alreadyProcessed(e.id())).thenReturn(false);
+        // Simulate: between our dedup-check and mark, another consumer thread marked it.
+        org.mockito.Mockito.doThrow(new DataIntegrityViolationException("processed_event_pkey"))
+                .when(dedup).markProcessed(eq(e.id()), any());
+
+        handler.handle(e);   // must NOT throw
+
+        verify(normalizer, times(1)).normalize(e);   // normalization already happened in OUR tx
+    }
+
+    private static ConsumedEvent event() {
+        return new ConsumedEvent(UUID.randomUUID(),
+                "RawCostLineItem", "billing", "{\"identity/LineItemId\":\"x\"}");
     }
 }

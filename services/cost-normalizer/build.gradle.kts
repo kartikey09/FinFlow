@@ -11,7 +11,11 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
     implementation("org.springframework.kafka:spring-kafka")
     implementation(project(":shared:common"))
+    implementation(project(":shared:outbox-starter"))   // Day 13: cost-normalizer is now a producer too
     implementation("jakarta.persistence:jakarta.persistence-api")
+
+    // Day 13 — L1 dedup cache (last 100k event ids in front of the DB ledger).
+    implementation("com.github.ben-manes.caffeine:caffeine:3.1.8")
 
     runtimeOnly("org.postgresql:postgresql")
     implementation("org.flywaydb:flyway-core")
