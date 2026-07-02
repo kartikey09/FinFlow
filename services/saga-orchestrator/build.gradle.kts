@@ -6,19 +6,19 @@ plugins {
 
 dependencies {
     implementation(project(":shared:common"))
+    implementation(project(":shared:outbox-starter"))     // Day 17: saga becomes the 5th outbox producer
 
-    // The plan is emphatic: Day 16 uses JPA + Jackson and nothing else.
-    // Spring Kafka + outbox-starter come in on Day 17 when we wire this to the
-    // live system. Keeping Day 16 minimal is the whole point — a state machine
-    // that's provably correct in a pure JUnit test before any infrastructure.
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
+    implementation("org.springframework.boot:spring-boot-starter-web")       // Day 17: REST endpoint
+    implementation("org.springframework.boot:spring-boot-starter-actuator")
+    implementation("org.springframework.kafka:spring-kafka")                 // Day 17: consumer for saga.events
     implementation("com.fasterxml.jackson.core:jackson-databind")
 
     runtimeOnly("org.postgresql:postgresql")
     implementation("org.flywaydb:flyway-core")
     runtimeOnly("org.flywaydb:flyway-database-postgresql")
 
-    // --- tests: pure JUnit + Mockito. No @SpringBootTest yet — the transition
-    //     service is a pure function, tested without booting anything.
+    // --- tests ---
     testImplementation("org.springframework.boot:spring-boot-starter-test")
+    testImplementation("org.springframework.kafka:spring-kafka-test")
 }
