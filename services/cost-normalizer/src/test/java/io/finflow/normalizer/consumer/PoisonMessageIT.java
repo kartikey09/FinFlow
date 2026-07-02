@@ -14,9 +14,13 @@ import org.apache.kafka.common.serialization.StringSerializer;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.kafka.test.EmbeddedKafkaBroker;
 import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.kafka.test.utils.KafkaTestUtils;
+import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.time.Duration;
 import java.util.List;
@@ -29,9 +33,12 @@ import static org.awaitility.Awaitility.await;
 /**
  * Proves the consumer-side dead-letter path WITHOUT Docker.
  *
- * <p>An in-JVM broker ({@code @EmbeddedKafka}) plus an in-memory DB (H2) is all
- * this needs — the poison record fails at parse time, before the handler ever
- * touches the database, so H2 only exists to let the full context start.
+ * <p>An in-JVM broker ({@code @EmbeddedKafka}) drives the Kafka side; the
+ * datasource is a real Postgres via Testcontainers. The poison record fails at
+ * parse time, before the handler ever touches the database, so the DB only
+ * exists to let the full context start — but it must be Postgres, not H2,
+ * because the shared outbox migration ({@code OutboxFlywayConfig}) uses the
+ * Postgres-only {@code JSONB} type, which H2 cannot parse.
  *
  * <p>Scenario: produce an event with <b>no {@code id} header</b>.
  * {@code EventEnvelopeParser} throws {@link IllegalStateException};
@@ -42,15 +49,15 @@ import static org.awaitility.Awaitility.await;
  */
 @SpringBootTest(properties = {
         "spring.kafka.bootstrap-servers=${spring.embedded.kafka.brokers}",
-        "spring.kafka.consumer.group-id=poison-test-group",
-        "spring.datasource.url=jdbc:h2:mem:poison;MODE=PostgreSQL;DB_CLOSE_DELAY=-1",
-        "spring.datasource.driver-class-name=org.h2.Driver",
-        "spring.datasource.username=sa",
-        "spring.datasource.password=",
-        "spring.jpa.properties.hibernate.default_schema=PUBLIC"
+        "spring.kafka.consumer.group-id=poison-test-group"
 })
 @EmbeddedKafka(partitions = 1, topics = {"finflow.events.billing", "finflow.events.billing.DLT"})
+@Testcontainers
 class PoisonMessageIT {
+
+    @Container
+    @ServiceConnection
+    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine");
 
     private static final String SOURCE_TOPIC = "finflow.events.billing";
     private static final String DLT_TOPIC = "finflow.events.billing.DLT";

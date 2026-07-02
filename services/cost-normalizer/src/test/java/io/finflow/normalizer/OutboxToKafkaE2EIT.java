@@ -155,7 +155,11 @@ class OutboxToKafkaE2EIT {
                 .with("transforms.outbox.table.field.event.id", "id")
                 .with("transforms.outbox.table.field.event.key", "aggregate_id")
                 .with("transforms.outbox.table.field.event.type", "type")
-                .with("transforms.outbox.table.field.event.timestamp", "created_at")
+                // No table.field.event.timestamp mapping: the EventRouter uses that field
+                // as the Kafka record timestamp and requires INT64 (epoch millis), but
+                // created_at is a TIMESTAMPTZ (emitted as a ZonedTimestamp string), so
+                // mapping it crashes the task with "Field 'created_at' is not of type INT64".
+                // Production outbox-connector.json omits it too — Debezium's own event ts is used.
                 .with("transforms.outbox.table.field.event.payload", "payload")
                 .with("transforms.outbox.table.expand.json.payload", "true")
                 .with("transforms.outbox.route.by.field", "aggregate_type")
