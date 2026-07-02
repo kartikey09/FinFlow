@@ -37,7 +37,7 @@ include("shared:common")
 //
 // Week 4 (saga):
  include("services:saga-orchestrator")
-// include("services:aws-adapter-worker")
+ include("services:aws-adapter-worker")
 // include("services:gcp-adapter-worker")
 //
 // Week 6 (recommendations):
