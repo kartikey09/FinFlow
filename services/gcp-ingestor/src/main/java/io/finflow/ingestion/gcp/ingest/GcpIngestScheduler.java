@@ -30,8 +30,8 @@ public class GcpIngestScheduler {
     }
 
     @Scheduled(
-            fixedDelayString = "${finflow.gcp.ingest.poll-interval:30s}",
-            initialDelayString = "${finflow.gcp.ingest.initial-delay:12s}")
+            fixedDelayString = "${finflow.gcp.ingest.poll-interval:PT30S}",
+            initialDelayString = "${finflow.gcp.ingest.initial-delay:PT12S}")
     public void poll() {
         try {
             String token = ingestService.currentToken();

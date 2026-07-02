@@ -43,8 +43,8 @@ finflow:
     base-url: http://localhost:9000
   gcp:
     ingest:
-      poll-interval: 30s
-      initial-delay: 12s      # offset from aws (10s) so both don't poll in lockstep
+      poll-interval: PT30S
+      initial-delay: PT12S    # offset from aws (10s) so both don't poll in lockstep
 
 # Same retry policy as aws-ingestor: absorb the Chaos API's injected 503s.
 resilience4j:
