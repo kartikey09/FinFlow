@@ -33,10 +33,10 @@ include("shared:common")
  include("services:gcp-ingestor")
  include("services:cost-normalizer")
  include("services:commitment-tracker")
-// include("services:query-api")
+ include("services:query-api")
 //
 // Week 4 (saga):
-// include("services:saga-orchestrator")
+ include("services:saga-orchestrator")
 // include("services:aws-adapter-worker")
 // include("services:gcp-adapter-worker")
 //
