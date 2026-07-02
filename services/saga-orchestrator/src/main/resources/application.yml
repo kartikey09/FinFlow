@@ -26,6 +26,24 @@ spring:
     schemas: saga
     create-schemas: true
     locations: classpath:db/migration
+    # classpath:db/outbox is intentionally NOT listed here — its V1 would
+    # collide with this service's V1__baseline (same trick as ingestors/normalizer).
+
+  kafka:
+    bootstrap-servers: localhost:29092                    # external listener
+    consumer:
+      group-id: saga-orchestrator
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      properties:
+        metadata.max.age.ms: 10000
+    listener:
+      ack-mode: manual
+
+finflow:
+  tenant-id: default
 
 logging:
   level:
