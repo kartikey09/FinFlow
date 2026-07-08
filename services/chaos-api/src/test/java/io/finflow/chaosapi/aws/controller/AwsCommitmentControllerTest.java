@@ -29,7 +29,7 @@ class AwsCommitmentControllerTest {
 
     @BeforeEach
     void disableChaos() {
-        Mockito.when(chaosDecider.decide()).thenReturn(ChaosDecider.Outcome.PASS);
+        Mockito.when(chaosDecider.decide(org.mockito.ArgumentMatchers.anyString())).thenReturn(ChaosDecider.Outcome.PASS);
     }
 
     private static final String BODY = """

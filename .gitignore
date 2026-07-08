@@ -3,6 +3,10 @@
 build/
 pgdata/
 
+# Node / Vite (web dashboard)
+node_modules/
+.vite/
+
 # IDE files
 .idea/
 *.iml

@@ -57,6 +57,15 @@ public class SagaInstance {
     private SagaState currentState;
 
     /**
+     * Day 20: which vendor's adapter handles this saga's commands. The emitter
+     * reads it to route to {@code saga.commands.aws} vs {@code saga.commands.gcp}.
+     * Nullable so pre-Day-20 rows survive the V2 migration without a backfill.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "vendor", length = 16)
+    private Vendor vendor;
+
+    /**
      * Ordered list of steps that have committed successfully. Compensation
      * reads this in reverse. Serialized as JSONB.
      */
@@ -84,10 +93,11 @@ public class SagaInstance {
 
     protected SagaInstance() { /* for JPA */ }
 
-    public SagaInstance(UUID id, SagaType type, String correlationId) {
+    public SagaInstance(UUID id, SagaType type, String correlationId, Vendor vendor) {
         this.id = id;
         this.type = type;
         this.correlationId = correlationId;
+        this.vendor = vendor;
         this.currentState = SagaState.STARTED;
     }
 
@@ -106,6 +116,20 @@ public class SagaInstance {
     }
 
     /**
+     * Pop the most-recently-completed step off the stack. Called by the
+     * orchestrator when a compensation Undo succeeds: the
+     * {@link io.finflow.saga.transition.SagaTransitionService} computes the next
+     * undo from the tail of {@code completedSteps} and expects the caller to
+     * physically remove the step it just unwound, so the reverse walk shrinks
+     * toward COMPENSATED. Without this pop the walk never terminates.
+     */
+    public void popLastCompletedStep() {
+        if (!completedSteps.isEmpty()) {
+            completedSteps.remove(completedSteps.size() - 1);
+        }
+    }
+
+    /**
      * Read-only view of completed steps. Callers that want to walk them in
      * reverse (compensation) should reverse a defensive copy.
      */
@@ -115,6 +139,7 @@ public class SagaInstance {
 
     public UUID getId()                    { return id; }
     public SagaType getType()              { return type; }
+    public Vendor getVendor()              { return vendor; }
     public SagaState getCurrentState()     { return currentState; }
     public String getCorrelationId()       { return correlationId; }
     public Long getVersion()               { return version; }

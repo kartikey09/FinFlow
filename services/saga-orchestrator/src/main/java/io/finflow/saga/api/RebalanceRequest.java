@@ -1,11 +1,14 @@
 package io.finflow.saga.api;
 
+import io.finflow.saga.model.Vendor;
+
 /**
  * Body for {@code POST /sagas/rebalance}.
  *
- * <p>Just {@code correlationId} for now. Real business context (source and
- * target commitment ids) will be added on Day 20 when the dashboard button
- * is wired; the orchestrator will store it on the SagaInstance so adapter
- * workers can read it.
+ * <p>Day 20 adds {@code vendor}. The value is what routes commands:
+ * {@code AWS} → topic {@code saga.commands.aws} → aws-adapter-worker;
+ * {@code GCP} → {@code saga.commands.gcp} → gcp-adapter-worker. It is optional
+ * on the wire — the controller defaults a missing vendor to {@code AWS} to
+ * preserve backward compatibility with existing test scripts.
  */
-public record RebalanceRequest(String correlationId) {}
+public record RebalanceRequest(String correlationId, Vendor vendor) {}

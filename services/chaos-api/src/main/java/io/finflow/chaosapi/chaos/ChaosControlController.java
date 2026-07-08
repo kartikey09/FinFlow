@@ -47,14 +47,17 @@ public class ChaosControlController{
      * If your downstream ingestor starts failing out of nowhere, you can hit this endpoint to confirm,
      * "someone left the chaos switch turned on at a 50% failure rate."
      */
-    @GetMapping("/status")    //when GET /chaos/status is called it takes the current 4 values of the ChaosState memomry and makes a java map
+    @GetMapping({"", "/status"})    //GET /chaos or /chaos/status: a JSON snapshot of the live rules
     public Map<String, Object> status(){
-        return Map.of(   //Map.of automatically converts a java map into a formatted JSON object
-                "enabled", state.enabled(),
-                "faultRate", state.faultRate(),
-                "hangShare", state.hangShare(),
-                "hangMillis", state.hangMillis()
-        );
+        Map<String, Object> snapshot = new java.util.LinkedHashMap<>();
+        snapshot.put("enabled", state.enabled());
+        snapshot.put("faultRate", state.faultRate());
+        snapshot.put("hangShare", state.hangShare());
+        snapshot.put("hangMillis", state.hangMillis());
+        // Day 20: surface the per-endpoint target filter too.
+        snapshot.put("targetPathContains", state.targetPathContains());
+        snapshot.put("targetFaultRate", state.targetFaultRate());
+        return snapshot;
     }
 
 
@@ -81,6 +84,60 @@ public class ChaosControlController{
         }
         state.setFaultRate(value);
         log.warn("[CHAOS-CONTROL] fault rate set to {}%", value);
+        return status();
+    }
+
+
+    // ---- Day 20: value-style endpoints + per-endpoint targeting -------------
+    // These parallel the ?value= convention the saga integration tests drive
+    // (see SagaCompensationIT). /enable and /rate above are kept for back-compat.
+
+    /** Master switch, {@code ?value=} style: {@code POST /chaos/enabled?value=true}. */
+    @PostMapping("/enabled")
+    public Map<String, Object> enabled(@RequestParam(defaultValue = "true") boolean value){
+        state.setEnabled(value);
+        log.warn("[CHAOS-CONTROL] chaos enabled set to {}", value);
+        return status();
+    }
+
+    /** Global (background) fault rate, {@code ?value=} style: {@code POST /chaos/fault-rate?value=0}. */
+    @PostMapping("/fault-rate")
+    public Map<String, Object> faultRate(@RequestParam int value){
+        if(value<0 || value>100){
+            throw new IllegalArgumentException("fault-rate must be 0-100");
+        }
+        state.setFaultRate(value);
+        log.warn("[CHAOS-CONTROL] background fault rate set to {}%", value);
+        return status();
+    }
+
+    /**
+     * Sets the target-path substring filter: {@code POST /chaos/target-path?value=reserve}.
+     * Only request URIs containing this substring receive the target fault rate.
+     */
+    @PostMapping("/target-path")
+    public Map<String, Object> targetPath(@RequestParam String value){
+        state.setTargetPathContains(value);
+        log.warn("[CHAOS-CONTROL] target-path filter set to contain '{}'", value);
+        return status();
+    }
+
+    /** Elevated fault rate for the targeted path: {@code POST /chaos/target-rate?value=100}. */
+    @PostMapping("/target-rate")
+    public Map<String, Object> targetRate(@RequestParam int value){
+        if(value<0 || value>100){
+            throw new IllegalArgumentException("target-rate must be 0-100");
+        }
+        state.setTargetFaultRate(value);
+        log.warn("[CHAOS-CONTROL] target fault rate set to {}%", value);
+        return status();
+    }
+
+    /** Clears the target filter so all traffic falls back to the background rate. */
+    @PostMapping("/target-clear")
+    public Map<String, Object> targetClear(){
+        state.clearTarget();
+        log.warn("[CHAOS-CONTROL] target filter cleared");
         return status();
     }
 

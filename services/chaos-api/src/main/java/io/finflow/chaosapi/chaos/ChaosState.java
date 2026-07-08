@@ -50,6 +50,21 @@ public class ChaosState {
     private final double hangShare;
     private final long hangMillis;
 
+    /**
+     * Day 20: per-endpoint chaos targeting.
+     *
+     * <p>The saga compensation test needs to fail ONE specific step (e.g. step 3,
+     * RESERVE_TARGET) at 100% while every other step stays healthy. A single global
+     * fault rate can't express that — set it to 100% and steps 1 and 2 fail too, so
+     * the saga never reaches step 3. The fix is a substring filter: when
+     * {@code targetPathContains} is set, only request URIs containing that substring
+     * see {@code targetFaultRate}; everything else keeps seeing the global (background)
+     * {@link #faultRate}. Set {@code targetPathContains="reserve"} +
+     * {@code targetFaultRate=100} to fail only the reserve endpoint.
+     */
+    private volatile String targetPathContains;
+    private final AtomicInteger targetFaultRate = new AtomicInteger(0);
+
 
     /**
      *
@@ -101,5 +116,48 @@ public class ChaosState {
 
     public void setFaultRate(int rate){
         faultRate.set(rate);
+    }
+
+
+    // ---- Day 20: per-endpoint targeting -------------------------------------
+
+    public String targetPathContains(){
+        return targetPathContains;
+    }
+
+    public int targetFaultRate(){
+        return targetFaultRate.get();
+    }
+
+    public void setTargetPathContains(String path){
+        this.targetPathContains = path;
+    }
+
+    public void setTargetFaultRate(int rate){
+        targetFaultRate.set(rate);
+    }
+
+    /** Clears the target filter; all traffic falls back to the global fault rate. */
+    public void clearTarget(){
+        this.targetPathContains = null;
+        targetFaultRate.set(0);
+    }
+
+    /**
+     * The fault rate that actually applies to a given request URI.
+     *
+     * <p>Returns 0 when chaos is disabled (master switch). Otherwise, if a target
+     * filter is active AND the URI matches it, returns {@link #targetFaultRate};
+     * every other request gets the global background {@link #faultRate}.
+     */
+    public int effectiveFaultRate(String requestUri){
+        if(!enabled.get()){
+            return 0;
+        }
+        String tp = targetPathContains;
+        if(tp != null && !tp.isBlank() && requestUri != null && requestUri.contains(tp)){
+            return targetFaultRate.get();
+        }
+        return faultRate.get();
     }
 }

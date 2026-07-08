@@ -60,6 +60,27 @@ public class ChaosDecider {
         return (split < state.hangShare()) ? Outcome.HANG : Outcome.FAIL_503;
     }
 
+    /**
+     * Day 20: URI-aware decision. Same dice as {@link #decide(int, double)} but the
+     * fault rate is resolved PER REQUEST via {@link ChaosState#effectiveFaultRate(String)},
+     * so a target filter (e.g. "only /reserve fails at 100%") is honored. The
+     * interceptor passes {@code request.getRequestURI()} here on every call.
+     */
+    public Outcome decide(String requestUri){
+        return decide(requestUri,
+                ThreadLocalRandom.current().nextInt(100),
+                ThreadLocalRandom.current().nextDouble());
+    }
+
+    Outcome decide(String requestUri, int roll, double split){
+        // effectiveFaultRate already folds in the master switch (returns 0 when disabled)
+        int rate = state.effectiveFaultRate(requestUri);
+        if(rate <= 0 || roll >= rate){
+            return Outcome.PASS;
+        }
+        return (split < state.hangShare()) ? Outcome.HANG : Outcome.FAIL_503;
+    }
+
     //quick helper method so the Interceptor can ask how many milliseconds it should freeze the system for when a HANG outcome is returned.
     public long hangMillis(){
         return state.hangMillis();

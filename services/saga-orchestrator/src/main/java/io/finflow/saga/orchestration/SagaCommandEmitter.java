@@ -5,6 +5,7 @@ import io.finflow.saga.command.CommandTopicMap;
 import io.finflow.saga.command.SagaCommand;
 import io.finflow.saga.command.SagaCommandPayload;
 import io.finflow.saga.command.SagaCommandPayload.Direction;
+import io.finflow.saga.model.SagaInstance;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -14,19 +15,15 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 
 /**
- * Converts pure-Java {@link SagaCommand}s from {@code SagaTransitionService}
- * into outbox appends so Debezium can publish them.
+ * Converts pure-Java {@link SagaCommand}s into outbox appends.
  *
- * <p>{@code @Transactional(MANDATORY)} — this always runs INSIDE the caller's
- * transaction (either the REST-endpoint transaction that started the saga, or
- * the Kafka listener transaction that transitioned it). That guarantee is the
- * whole point: the SagaInstance save and the outbox append happen or fail
- * together. No possibility of state changing without the command being emitted,
- * or vice versa.
+ * <p>Day 20 change: the emitter now takes the {@link SagaInstance} alongside
+ * the commands, so it can read the vendor and route to the right topic. This
+ * closes the "AWS-only" hard-coding from Day 17.
  *
- * <p>The {@code aggregate_id} on the outbox row is the saga id (as a string).
- * The Kafka key ends up being the saga id — so all commands and events for one
- * saga stay ordered within a partition.
+ * <p>{@code @Transactional(MANDATORY)} — always runs inside the caller's
+ * transaction. That's the atomicity guarantee: SagaInstance save and outbox
+ * append commit together, or roll back together.
  */
 @Service
 public class SagaCommandEmitter {
@@ -42,18 +39,18 @@ public class SagaCommandEmitter {
     }
 
     @Transactional(propagation = Propagation.MANDATORY)
-    public void emitAll(List<SagaCommand> commands) {
+    public void emitAll(SagaInstance saga, List<SagaCommand> commands) {
         for (SagaCommand command : commands) {
-            emit(command);
+            emit(saga, command);
         }
     }
 
-    private void emit(SagaCommand command) {
+    private void emit(SagaInstance saga, SagaCommand command) {
         Direction direction = switch (command) {
             case SagaCommand.Do   ignored -> Direction.DO;
             case SagaCommand.Undo ignored -> Direction.UNDO;
         };
-        String aggregateType = topicMap.aggregateTypeFor(command.step());
+        String aggregateType = topicMap.aggregateTypeFor(command.step(), saga.getVendor());
         String idempotencyKey = SagaCommandPayload.keyFor(command.sagaId(), command.step(), direction);
         SagaCommandPayload payload = new SagaCommandPayload(
                 command.sagaId(), command.step(), direction, idempotencyKey);
