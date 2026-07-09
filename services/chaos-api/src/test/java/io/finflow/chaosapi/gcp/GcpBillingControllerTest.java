@@ -40,7 +40,7 @@ class GcpBillingControllerTest {
     @BeforeEach
     void disableChaosForTests() {
         // Tell the fake dice-roller to always let traffic through
-        Mockito.when(chaosDecider.decide()).thenReturn(ChaosDecider.Outcome.PASS);
+        Mockito.when(chaosDecider.decide(org.mockito.ArgumentMatchers.anyString())).thenReturn(ChaosDecider.Outcome.PASS);
     }
 
     @Autowired ObjectMapper objectMapper;

@@ -17,7 +17,7 @@ class SagaInstanceTest {
 
     @Test
     void applyTransition_recordsStepAndMovesState() {
-        SagaInstance saga = new SagaInstance(UUID.randomUUID(), SagaType.REBALANCE, "corr-1");
+        SagaInstance saga = new SagaInstance(UUID.randomUUID(), SagaType.REBALANCE, "corr-1", Vendor.AWS);
         assertThat(saga.getCurrentState()).isEqualTo(SagaState.STARTED);
 
         saga.applyTransition(SagaState.LOCKED, SagaStep.ACQUIRE_LOCK);
@@ -29,7 +29,7 @@ class SagaInstanceTest {
     @Test
     void applyTransition_movesStateWithoutRecordingIfStepIsNull() {
         // Compensation transitions pass a null step because they're unwinding, not doing.
-        SagaInstance saga = new SagaInstance(UUID.randomUUID(), SagaType.REBALANCE, "corr-2");
+        SagaInstance saga = new SagaInstance(UUID.randomUUID(), SagaType.REBALANCE, "corr-2", Vendor.AWS);
         saga.applyTransition(SagaState.LOCKED, SagaStep.ACQUIRE_LOCK);
 
         saga.applyTransition(SagaState.COMPENSATING, null);
@@ -40,7 +40,7 @@ class SagaInstanceTest {
 
     @Test
     void getCompletedSteps_returnsUnmodifiableView() {
-        SagaInstance saga = new SagaInstance(UUID.randomUUID(), SagaType.REBALANCE, "corr-3");
+        SagaInstance saga = new SagaInstance(UUID.randomUUID(), SagaType.REBALANCE, "corr-3", Vendor.AWS);
         saga.applyTransition(SagaState.LOCKED, SagaStep.ACQUIRE_LOCK);
 
         assertThatThrownBy(() -> saga.getCompletedSteps().add(SagaStep.VERIFY_COMMITMENT))

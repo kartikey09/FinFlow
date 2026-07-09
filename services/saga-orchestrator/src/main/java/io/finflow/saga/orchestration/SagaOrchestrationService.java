@@ -4,8 +4,10 @@ import io.finflow.saga.command.SagaCommand;
 import io.finflow.saga.domain.SagaInstanceRepository;
 import io.finflow.saga.event.SagaEvent;
 import io.finflow.saga.model.SagaInstance;
+import io.finflow.saga.model.SagaState;
 import io.finflow.saga.model.SagaStep;
 import io.finflow.saga.model.SagaType;
+import io.finflow.saga.model.Vendor;
 import io.finflow.saga.transition.SagaTransitionService;
 import io.finflow.saga.transition.TransitionResult;
 import org.slf4j.Logger;
@@ -76,7 +78,7 @@ public class SagaOrchestrationService {
      * transition directly: it's the ONE hard-coded hop into the state machine.
      */
     @Transactional
-    public SagaInstance startRebalance(String correlationId) {
+    public SagaInstance startRebalance(String correlationId, Vendor vendor) {
         Optional<SagaInstance> existing = sagaRepository.findByCorrelationId(correlationId);
         if (existing.isPresent()) {
             log.info("Rebalance idempotent: saga {} already exists for correlation {}",
@@ -84,14 +86,17 @@ public class SagaOrchestrationService {
             return existing.get();
         }
 
-        SagaInstance saga = new SagaInstance(UUID.randomUUID(), SagaType.REBALANCE, correlationId);
+        // Day 20: the vendor is stored on the row so every subsequent command
+        // (emitted by handleEvent below) routes to the same adapter.
+        SagaInstance saga = new SagaInstance(UUID.randomUUID(), SagaType.REBALANCE, correlationId, vendor);
         sagaRepository.save(saga);
 
         // Emit the first Do — the initial hop from STARTED. The subsequent hops
         // are all driven by the pure evaluate() switch on incoming events.
-        commandEmitter.emitAll(List.of(new SagaCommand.Do(saga.getId(), SagaStep.ACQUIRE_LOCK)));
+        commandEmitter.emitAll(saga, List.of(new SagaCommand.Do(saga.getId(), SagaStep.ACQUIRE_LOCK)));
 
-        log.info("Started rebalance saga {} (correlation {})", saga.getId(), correlationId);
+        log.info("Started rebalance saga {} (correlation {}, vendor {})",
+                saga.getId(), correlationId, vendor);
         return saga;
     }
 
@@ -118,8 +123,9 @@ public class SagaOrchestrationService {
         }
         SagaInstance saga = maybeSaga.get();
 
+        SagaState stateBefore = saga.getCurrentState();
         TransitionResult result = transitionService.evaluate(
-                saga.getCurrentState(), saga.getCompletedSteps(), event);
+                stateBefore, saga.getCompletedSteps(), event);
 
         if (result.nextState() == saga.getCurrentState()
                 && result.commandsToEmit().isEmpty()
@@ -131,8 +137,27 @@ public class SagaOrchestrationService {
 
         try {
             saga.applyTransition(result.nextState(), result.justCompleted());
+            // Compensation reverse-walk: a successful Undo (a StepSucceeded while
+            // COMPENSATING) unwound the most-recently-completed step, so pop it off
+            // the stack. The transition service reads the tail of completed_steps to
+            // pick the NEXT undo, and terminates at COMPENSATED once the stack empties.
+            if (stateBefore == SagaState.COMPENSATING && event instanceof SagaEvent.StepSucceeded) {
+                saga.popLastCompletedStep();
+            }
+            // Collapse the final forward hop: once UPDATE_LEDGER succeeds the saga is
+            // at LEDGER_UPDATED with no further command to emit, so no adapter event
+            // will ever arrive to drive LEDGER_UPDATED -> COMPLETED. The transition
+            // service models this as two hops (one state = one responsibility); in the
+            // live pipeline we finalize it here so the saga actually reaches COMPLETED.
+            if (saga.getCurrentState() == SagaState.LEDGER_UPDATED) {
+                saga.applyTransition(SagaState.COMPLETED, null);
+            }
             sagaRepository.save(saga);
-            commandEmitter.emitAll(result.commandsToEmit());
+            // Only touch the outbox when there's actually something to emit — a
+            // terminal hop (LEDGER_UPDATED, COMPLETED, COMPENSATED) carries no command.
+            if (!result.commandsToEmit().isEmpty()) {
+                commandEmitter.emitAll(saga, result.commandsToEmit());
+            }
         } catch (OptimisticLockingFailureException raced) {
             log.info("Concurrent update on saga {}; will retry on redelivery ({})",
                     saga.getId(), raced.getMessage());

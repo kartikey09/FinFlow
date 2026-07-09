@@ -10,11 +10,13 @@ dependencyManagement {
 }
 
 dependencies {
-    // Exposed to consumers: they compile against OutboxEvent/Repository/Appender,
-    // which need JPA + transactions; and the appender serializes with Jackson.
+    // Exposed to consumers.
     api("org.springframework.boot:spring-boot-starter-data-jpa")
     api("com.fasterxml.jackson.core:jackson-databind")
-    // For @AutoConfiguration / @ConditionalOn* (also transitive via data-jpa).
+    // Day 20: Flyway is now part of the library's contract because
+    // OutboxSchemaAutoConfiguration runs the migration for consumers.
+    api("org.flywaydb:flyway-core")
+
     implementation("org.springframework.boot:spring-boot-autoconfigure")
 
     // --- test: validate against a real Postgres ---
@@ -22,7 +24,6 @@ dependencies {
     testImplementation("org.springframework.boot:spring-boot-testcontainers")
     testImplementation("org.testcontainers:junit-jupiter")
     testImplementation("org.testcontainers:postgresql")
-    testImplementation("org.flywaydb:flyway-core")
     testRuntimeOnly("org.flywaydb:flyway-database-postgresql")
     testRuntimeOnly("org.postgresql:postgresql")
 }

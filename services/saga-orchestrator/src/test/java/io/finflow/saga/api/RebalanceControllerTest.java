@@ -3,6 +3,7 @@ package io.finflow.saga.api;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.finflow.saga.model.SagaInstance;
 import io.finflow.saga.model.SagaType;
+import io.finflow.saga.model.Vendor;
 import io.finflow.saga.orchestration.SagaOrchestrationService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,6 +16,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.util.Optional;
 import java.util.UUID;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -38,12 +40,12 @@ class RebalanceControllerTest {
 
     @Test
     void postRebalance_returns202AndSagaShape() throws Exception {
-        SagaInstance saga = new SagaInstance(UUID.randomUUID(), SagaType.REBALANCE, "corr-abc");
-        when(orchestration.startRebalance(eq("corr-abc"))).thenReturn(saga);
+        SagaInstance saga = new SagaInstance(UUID.randomUUID(), SagaType.REBALANCE, "corr-abc", Vendor.AWS);
+        when(orchestration.startRebalance(eq("corr-abc"), any())).thenReturn(saga);
 
         mockMvc.perform(post("/sagas/rebalance")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new RebalanceRequest("corr-abc"))))
+                        .content(objectMapper.writeValueAsString(new RebalanceRequest("corr-abc", Vendor.AWS))))
                 .andExpect(status().isAccepted())
                 .andExpect(jsonPath("$.correlationId").value("corr-abc"))
                 .andExpect(jsonPath("$.currentState").value("STARTED"));
@@ -68,7 +70,7 @@ class RebalanceControllerTest {
 
     @Test
     void getById_found_returnsBody() throws Exception {
-        SagaInstance saga = new SagaInstance(UUID.randomUUID(), SagaType.REBALANCE, "corr-xyz");
+        SagaInstance saga = new SagaInstance(UUID.randomUUID(), SagaType.REBALANCE, "corr-xyz", Vendor.AWS);
         when(orchestration.findById(saga.getId())).thenReturn(Optional.of(saga));
 
         mockMvc.perform(get("/sagas/{id}", saga.getId()))

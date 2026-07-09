@@ -1,6 +1,7 @@
 package io.finflow.saga.api;
 
 import io.finflow.saga.model.SagaInstance;
+import io.finflow.saga.model.Vendor;
 import io.finflow.saga.orchestration.SagaOrchestrationService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -44,7 +45,10 @@ public class RebalanceController {
         if (request == null || request.correlationId() == null || request.correlationId().isBlank()) {
             return ResponseEntity.badRequest().build();
         }
-        SagaInstance saga = orchestrationService.startRebalance(request.correlationId());
+        // Day 20: default to AWS if the caller omits vendor, so existing scripts
+        // that POST only a correlationId keep working.
+        Vendor vendor = request.vendor() != null ? request.vendor() : Vendor.AWS;
+        SagaInstance saga = orchestrationService.startRebalance(request.correlationId(), vendor);
         return ResponseEntity.accepted().body(RebalanceResponse.of(saga));
     }
 

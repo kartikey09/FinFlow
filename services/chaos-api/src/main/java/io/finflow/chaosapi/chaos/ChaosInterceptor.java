@@ -53,7 +53,7 @@ public class ChaosInterceptor implements HandlerInterceptor{
         String tag = prefixFor(request.getRequestURI()); //Grabs the URL the user is trying to reach
         // (e.g., /aws/cost-and-usage-report) and generates a clean logging tag like [AWS-CHAOS] so your terminal output is easy to read.
 
-        switch(decider.decide()){ //It calls the ChaosDecider, rolls the virtual dice, and checks the outcome.
+        switch(decider.decide(request.getRequestURI())){ //Day 20: URI-aware so a target-path filter can single out one saga step.
             case PASS -> {
                 return true;  //If the dice roll says PASS, it immediately returns true. The Bouncer steps aside,
                               // and the user reaches the target controller completely unaware they were just evaluated.

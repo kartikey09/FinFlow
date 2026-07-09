@@ -4,10 +4,12 @@
                  xsi:schemaLocation="https://jakarta.ee/xml/ns/persistence/orm https://jakarta.ee/xml/ns/persistence/orm/orm_3_0.xsd"
                  version="3.0">
     <!--
-      Pin the SHARED outbox table to `public` (Debezium tails public.outbox_event).
-      Identical override to the three earlier adopters (aws-ingestor, gcp-ingestor,
-      cost-normalizer). The FOURTH repetition — the strongest case yet for folding
-      this into the locked outbox-starter. See DAY14-MANIFEST.
+      OutboxEvent lives in the public schema. Debezium tails public.outbox_event.
+      This override moves the entity there regardless of the consuming service's
+      hibernate.default_schema, so no service needs its own orm.xml anymore.
+
+      Previously each of 7 services shipped a byte-identical copy of this file.
+      Day 20 folded it here.
     -->
     <entity class="io.finflow.outbox.OutboxEvent">
         <table name="outbox_event" schema="public"/>
