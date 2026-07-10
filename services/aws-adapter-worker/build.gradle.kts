@@ -10,6 +10,8 @@ dependencies {
 
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
+    // Day 22: Prometheus registry — exposes /actuator/prometheus for scraping.
+    implementation("io.micrometer:micrometer-registry-prometheus")
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
     implementation("org.springframework.boot:spring-boot-starter-aop")   // resilience4j aspects need AOP
     implementation("org.springframework.kafka:spring-kafka")

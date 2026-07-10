@@ -3,6 +3,7 @@ package io.finflow.saga.orchestration;
 import io.finflow.saga.command.SagaCommand;
 import io.finflow.saga.domain.SagaInstanceRepository;
 import io.finflow.saga.event.SagaEvent;
+import io.finflow.saga.metrics.SagaMetrics;
 import io.finflow.saga.model.SagaInstance;
 import io.finflow.saga.model.SagaStep;
 import io.finflow.saga.model.SagaType;
@@ -37,8 +38,9 @@ class SagaConcurrencyTest {
     private final SagaInstanceRepository repo = mock(SagaInstanceRepository.class);
     private final SagaTransitionService transitionService = mock(SagaTransitionService.class);
     private final SagaCommandEmitter emitter = mock(SagaCommandEmitter.class);
+    private final SagaMetrics sagaMetrics = mock(SagaMetrics.class);
     private final SagaOrchestrationService orchestration =
-            new SagaOrchestrationService(repo, transitionService, emitter);
+            new SagaOrchestrationService(repo, transitionService, emitter, sagaMetrics);
 
     @Test
     void optimisticLockFailure_isRethrownSoKafkaCanRedeliver() {

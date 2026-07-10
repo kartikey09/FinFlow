@@ -3,6 +3,7 @@ package io.finflow.saga.orchestration;
 import io.finflow.saga.command.SagaCommand;
 import io.finflow.saga.domain.SagaInstanceRepository;
 import io.finflow.saga.event.SagaEvent;
+import io.finflow.saga.metrics.SagaMetrics;
 import io.finflow.saga.model.SagaInstance;
 import io.finflow.saga.model.SagaState;
 import io.finflow.saga.model.SagaStep;
@@ -44,9 +45,10 @@ class SagaOrchestrationServiceTest {
     private final SagaInstanceRepository sagaRepository = mock(SagaInstanceRepository.class);
     private final SagaTransitionService transitionService = mock(SagaTransitionService.class);
     private final SagaCommandEmitter commandEmitter = mock(SagaCommandEmitter.class);
+    private final SagaMetrics sagaMetrics = mock(SagaMetrics.class);
 
     private final SagaOrchestrationService orchestration =
-            new SagaOrchestrationService(sagaRepository, transitionService, commandEmitter);
+            new SagaOrchestrationService(sagaRepository, transitionService, commandEmitter, sagaMetrics);
 
     @Test
     void startRebalance_firstTime_createsSagaAndEmitsInitialCommand() {

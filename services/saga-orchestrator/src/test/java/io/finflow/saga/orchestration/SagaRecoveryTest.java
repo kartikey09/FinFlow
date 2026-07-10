@@ -2,6 +2,7 @@ package io.finflow.saga.orchestration;
 
 import io.finflow.saga.domain.SagaInstanceRepository;
 import io.finflow.saga.event.SagaEvent;
+import io.finflow.saga.metrics.SagaMetrics;
 import io.finflow.saga.model.SagaInstance;
 import io.finflow.saga.model.SagaState;
 import io.finflow.saga.model.SagaStep;
@@ -35,6 +36,7 @@ class SagaRecoveryTest {
 
     private final SagaInstanceRepository repo = mock(SagaInstanceRepository.class);
     private final SagaCommandEmitter emitter = mock(SagaCommandEmitter.class);
+    private final SagaMetrics sagaMetrics = mock(SagaMetrics.class);
 
     @Test
     void restartedOrchestratorResumesFromLastCommittedState() {
@@ -45,8 +47,7 @@ class SagaRecoveryTest {
         saga.applyTransition(SagaState.TARGET_RESERVED, SagaStep.RESERVE_TARGET);
 
         // Fresh instance of the orchestration service — the "restarted" process.
-        SagaOrchestrationService restarted = new SagaOrchestrationService(
-                repo, new SagaTransitionService(), emitter);
+        SagaOrchestrationService restarted = new SagaOrchestrationService(repo, new SagaTransitionService(), emitter, sagaMetrics);
 
         when(repo.findById(saga.getId())).thenReturn(Optional.of(saga));
         when(repo.save(any(SagaInstance.class))).thenAnswer(inv -> inv.getArgument(0));

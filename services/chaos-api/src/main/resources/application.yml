@@ -17,7 +17,8 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info   #actuator endpoints
+        # Day 22: prometheus exposes /actuator/prometheus for scraping.
+        include: health,info,metrics,prometheus
   endpoint:
     health:
       show-details: always   #additional details - eg. disk space left, db connected or not,etc

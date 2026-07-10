@@ -1,0 +1,46 @@
+# FinFlow Prometheus scrape configuration.
+#
+# IMPORTANT — services run on the HOST (via ./gradlew bootRun), not in
+# docker-compose. Prometheus runs in a container. So scrape targets must reach
+# back to the host, which Docker exposes as host.docker.internal (works on
+# Docker Desktop for Mac/Windows; on Linux the compose file adds an
+# extra_hosts mapping to host-gateway so this name resolves there too).
+#
+# Every Spring Boot service exposes Prometheus format at /actuator/prometheus
+# (Day 22 added micrometer-registry-prometheus + the exposure).
+
+global:
+  scrape_interval: 10s          # fast enough for a live demo; not so fast it's noisy
+  scrape_timeout: 5s
+  evaluation_interval: 15s
+  external_labels:
+    project: finflow
+
+scrape_configs:
+  # ---- The 8 Spring Boot services + chaos-api ----
+  - job_name: finflow-services
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["host.docker.internal:8081"]
+        labels: {service: aws-ingestor}
+      - targets: ["host.docker.internal:8082"]
+        labels: {service: gcp-ingestor}
+      - targets: ["host.docker.internal:8085"]
+        labels: {service: cost-normalizer}
+      - targets: ["host.docker.internal:8086"]
+        labels: {service: commitment-tracker}
+      - targets: ["host.docker.internal:8087"]
+        labels: {service: query-api}
+      - targets: ["host.docker.internal:8088"]
+        labels: {service: saga-orchestrator}
+      - targets: ["host.docker.internal:8089"]
+        labels: {service: aws-adapter-worker}
+      - targets: ["host.docker.internal:8090"]
+        labels: {service: gcp-adapter-worker}
+      - targets: ["host.docker.internal:9000"]
+        labels: {service: chaos-api}
+
+  # ---- Prometheus scrapes itself (useful for sanity + the "up" panel) ----
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]

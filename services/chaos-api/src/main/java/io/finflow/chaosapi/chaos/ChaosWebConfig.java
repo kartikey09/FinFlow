@@ -3,6 +3,8 @@ package io.finflow.chaosapi.chaos;
 //EnableConfigurationProperties - Activates ChaosProperties binding from application.yml
 //without this it wouldn't know how to link chaosProperties to application.yml file
 // activates that YAML-to-Java translation
+import io.micrometer.core.instrument.MeterRegistry;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
@@ -22,6 +24,14 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
  * and GCP endpoints. This guarantees that our internal control dashboard (/chaos)
  * and our vital infrastructure health checks (/actuator/health) remain 100%
  * reliable and untouched by the fault injection.
+ *
+ * <p>Day 22: the interceptor now also needs a MeterRegistry (to emit
+ * finflow.chaos.faults.injected), so we inject it here and pass it through.
+ * It's injected via {@link ObjectProvider} and resolved with
+ * {@code getIfAvailable()} so the config still loads when no registry is on the
+ * context (e.g. a {@code @WebMvcTest} slice) — the interceptor null-checks the
+ * registry and simply skips the metric. In production every FinFlow service has
+ * the Prometheus registry, so the counter is always live.
  */
 @Configuration
 @EnableConfigurationProperties(ChaosProperties.class) //This is the exact line that officially turns ChaosProperties record on
@@ -31,9 +41,13 @@ public class ChaosWebConfig implements WebMvcConfigurer{
     // It gives you the power to override default behaviors, like adding custom interceptors to the HTTP traffic pipeline.
 
     private final ChaosDecider decider;
-    //standard DI so that it can hand over the decider to interceptor
-    public ChaosWebConfig(ChaosDecider decider){
+    private final MeterRegistry meterRegistry;
+    //standard DI so that it can hand over the decider (and the registry) to the interceptor.
+    //MeterRegistry is optional (getIfAvailable() -> null when absent) so this config
+    //still loads in a @WebMvcTest slice that doesn't auto-configure metrics.
+    public ChaosWebConfig(ChaosDecider decider, ObjectProvider<MeterRegistry> meterRegistry){
         this.decider = decider;
+        this.meterRegistry = meterRegistry.getIfAvailable();
     }
 
     /**
@@ -48,23 +62,8 @@ public class ChaosWebConfig implements WebMvcConfigurer{
      */
     @Override
     public void addInterceptors(InterceptorRegistry registry){
-        registry.addInterceptor(new ChaosInterceptor(decider)).addPathPatterns("/aws/**","/gcp/**");
+        registry.addInterceptor(new ChaosInterceptor(decider, meterRegistry)).addPathPatterns("/aws/**","/gcp/**");
         // addPathPatterns - limits chaos to the vendor endpoints
         // deliberately NOT /actuator/** — health/info must never be faulted
     }
 }
-
-/**
- * @Override (A standard Java feature)
- * This is a safety net provided by the Java language itself. When you implement an interface (like WebMvcConfigurer),
- * you are signing a contract that says "I will provide my own version of the methods defined in this interface."
- * What it does: It tells the Java compiler, "Hey, I am intentionally replacing a default method from the parent interface."
- */
-
-/**
- * @Configuration
- * Spring Boot manages hundreds of classes behind the scenes. It needs to know which ones are standard web traffic handlers, which ones are database tools, and which ones are system settings.
- * What it does: It marks the class as a Setup File. When the application first boots up, Spring aggressively scans your project looking for this exact annotation.
- * Why it's useful: When Spring sees @Configuration, it says, "Pause everything. Let me read this file first and execute its instructions before I open the web server to the public."
- * It ensures your Bouncer (ChaosInterceptor) is fully hired and at the door before any traffic arrives.
- */

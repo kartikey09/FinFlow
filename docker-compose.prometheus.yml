@@ -1,0 +1,39 @@
+# Day 22: Prometheus overlay.
+#
+# Usage (compose merges multiple -f files):
+#   docker compose -f docker-compose.yml -f docker-compose.prometheus.yml up -d
+#
+# Or paste the `prometheus:` service block below into the main docker-compose.yml
+# under `services:` (and it'll join the existing finflow-net network).
+
+name: finflow
+
+services:
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: finflow-prometheus
+    ports:
+      - "9090:9090"           # Prometheus UI at http://localhost:9090
+    volumes:
+      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - finflow-prometheus-data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=7d"
+      - "--web.enable-lifecycle"    # allows POST /-/reload to hot-reload scrape config
+    # On Linux, host.docker.internal isn't defined by default — this maps it to
+    # the host gateway so the scrape targets resolve. Harmless on Docker Desktop.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - finflow-net
+
+volumes:
+  finflow-prometheus-data:
+    name: finflow-prometheus-data
+
+networks:
+  finflow-net:
+    external: true
+    name: finflow-net

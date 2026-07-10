@@ -1,7 +1,9 @@
 package io.finflow.outbox;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.persistence.EntityManager;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -40,6 +42,13 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
  * <p>The Flyway timeline for {@code public.outbox_event} is handled by
  * {@link OutboxSchemaAutoConfiguration} — separate class because it needs a
  * different set of {@code @ConditionalOn*} guards.
+ *
+ * <h2>Day 22: metrics</h2>
+ *
+ * <p>The appender now takes an optional {@link MeterRegistry} (via
+ * {@link ObjectProvider}, so it stays null-safe when no registry is present) to
+ * emit {@code finflow.events.published}. The {@code finflow.outbox.pending}
+ * gauge is registered separately by {@link OutboxMetricsAutoConfiguration}.
  */
 @AutoConfiguration(after = JacksonAutoConfiguration.class)
 @ConditionalOnClass({ EntityManager.class, ObjectMapper.class })
@@ -61,7 +70,11 @@ public class OutboxAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public OutboxAppender outboxAppender(OutboxEventRepository repository, ObjectMapper objectMapper) {
-        return new OutboxAppender(repository, objectMapper);
+    public OutboxAppender outboxAppender(OutboxEventRepository repository,
+                                         ObjectMapper objectMapper,
+                                         ObjectProvider<MeterRegistry> meterRegistry) {
+        // ObjectProvider.getIfAvailable() returns null when no MeterRegistry bean
+        // exists, keeping the library usable without Micrometer.
+        return new OutboxAppender(repository, objectMapper, meterRegistry.getIfAvailable());
     }
 }
