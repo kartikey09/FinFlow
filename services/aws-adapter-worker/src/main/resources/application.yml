@@ -51,46 +51,67 @@ finflow:
     read-timeout: 10s
     connect-timeout: 5s
 
-# Resilience4j: retry + circuit breaker + bulkhead per the plan. TimeLimiter is
-# realized as read-timeout above (see AwsChaosClientConfig for the rationale).
+# Resilience4j: full stack per the plan's Day-21 tuning targets.
+# retry 3x/200ms base+jitter 0.3 · CB 50%/20 calls · TimeLimiter 7s · bulkhead 10.
 resilience4j:
   retry:
     instances:
       aws-chaos:
         max-attempts: 3
-        wait-duration: 500ms
-        # exponential-backoff-multiplier and randomized-wait-factor together
-        # give exponential backoff with jitter (per the plan: "exp backoff with jitter"):
-        # attempt 1: ~500ms  attempt 2: ~1000ms  attempt 3: ~2000ms, each ± ~50%.
+        wait-duration: 200ms                 # plan target: 200ms base
         enable-exponential-backoff: true
-        exponential-backoff-multiplier: 2
+        exponential-backoff-multiplier: 2     # 200 -> 400 -> 800 (capped by 3 attempts, < 2s)
         enable-randomized-wait: true
-        randomized-wait-factor: 0.5
+        randomized-wait-factor: 0.3           # plan target: 0.3 jitter
         retry-exceptions:
           - org.springframework.web.client.HttpServerErrorException
           - org.springframework.web.client.ResourceAccessException
           - java.io.IOException
+          - java.util.concurrent.TimeoutException
+        ignore-exceptions:
+          - org.springframework.web.client.HttpClientErrorException   # 4xx won't heal
   circuitbreaker:
     instances:
       aws-chaos:
-        # Open after 5 failures in a 60s window; probe again after 30s.
         sliding-window-type: COUNT_BASED
-        sliding-window-size: 10
-        minimum-number-of-calls: 5
-        failure-rate-threshold: 50
+        sliding-window-size: 20               # plan target: last 20 calls
+        minimum-number-of-calls: 10           # need 10 samples before it can open
+        failure-rate-threshold: 50            # plan target: 50%
         wait-duration-in-open-state: 30s
         permitted-number-of-calls-in-half-open-state: 3
         automatic-transition-from-open-to-half-open-enabled: true
+  timelimiter:
+    instances:
+      aws-chaos:
+        timeout-duration: 7s                  # plan target: 7s (> the 5s chaos hang)
+        cancel-running-future: true
   bulkhead:
     instances:
       aws-chaos:
-        # Max 10 concurrent calls per tenant. Semaphore-based (cheap; no thread pool).
-        # Callers block up to 100ms for a permit before throwing BulkheadFullException.
         max-concurrent-calls: 10
         max-wait-duration: 100ms
+
+# Day 21: expose circuit-breaker + retry + timelimiter state via Actuator so
+# Day 23's Grafana can scrape them.
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,circuitbreakers,circuitbreakerevents,retryevents,bulkheads,timelimiters
+  endpoint:
+    circuitbreakers:
+      enabled: true
+    circuitbreakerevents:
+      enabled: true
+    health:
+      show-details: always
+  health:
+    circuitbreakers:
+      enabled: true
 
 logging:
   level:
     io.finflow.adapter.aws: INFO
+    io.github.resilience4j: INFO
   pattern:
     console: "%d{HH:mm:ss} %-5level %cyan(%logger{0}) - %msg%n"

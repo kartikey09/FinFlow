@@ -42,12 +42,19 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,metrics,circuitbreakers,circuitbreakerevents,retryevents,timelimiters
   endpoint:
+    circuitbreakers:
+      enabled: true
+    circuitbreakerevents:
+      enabled: true
     health:
       show-details: always
       probes:
         enabled: true
+  health:
+    circuitbreakers:
+      enabled: true
 
 finflow:
   chaos-api:
@@ -57,21 +64,45 @@ finflow:
       poll-interval: PT30S   # @Scheduled fixedDelay between polls (dev)
       initial-delay: PT10S   # warm-up before the first poll
 
-# Bounded retry for the Chaos API poll. The Chaos API injects ~20% 503s;
-# retry those (and connection errors), but never a 4xx (it won't heal).
+# Day 21: full HTTP resilience stack for the Chaos API poll.
+# retry 3x/200ms base+jitter 0.3 · CB 50%/20 calls · TimeLimiter 7s.
+# Instance name "chaos-api" unchanged so AwsCurClient's annotations resolve.
 resilience4j:
   retry:
     instances:
       chaos-api:
         max-attempts: 3
-        wait-duration: 1s
+        wait-duration: 200ms
+        enable-exponential-backoff: true
+        exponential-backoff-multiplier: 2
+        enable-randomized-wait: true
+        randomized-wait-factor: 0.3
         retry-exceptions:
           - org.springframework.web.client.HttpServerErrorException
           - org.springframework.web.client.ResourceAccessException
-
+          - java.io.IOException
+          - java.util.concurrent.TimeoutException
+        ignore-exceptions:
+          - org.springframework.web.client.HttpClientErrorException
+  circuitbreaker:
+    instances:
+      chaos-api:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 20
+        minimum-number-of-calls: 10
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 30s
+        permitted-number-of-calls-in-half-open-state: 3
+        automatic-transition-from-open-to-half-open-enabled: true
+  timelimiter:
+    instances:
+      chaos-api:
+        timeout-duration: 7s
+        cancel-running-future: true
 
 logging:
   level:
     io.finflow.ingestion: INFO
+    io.github.resilience4j: INFO
   pattern:
     console: "%d{HH:mm:ss} %-5level %cyan(%logger{0}) - %msg%n"

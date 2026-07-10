@@ -12,33 +12,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
+import java.util.concurrent.ExecutionException;
 
 /**
- * The heart of Day 19. Same shape as Day 18's aws-adapter-worker executor:
- *
- * <pre>
- *   1. dedup lookup on idempotency_key
- *        HIT  -> skip GCP call, RE-EMIT cached result event  (crucial! see note)
- *        MISS -> fall through
- *
- *   2. Call the GCP Chaos endpoint mapped from step
- *        (@Retry + @CircuitBreaker + @Bulkhead in GcpChaosClient;
- *         read-timeout on the RestClient realizes the TimeLimiter spec)
- *
- *   3. Record outcome in gcp_adapter.processed_command
- *
- *   4. Emit result to saga.events via the outbox (SagaEventEmitter)
- *
- *   All in ONE @Transactional — the appender is @Transactional(MANDATORY),
- *   so the dedup row and the outbox event commit together.
- * </pre>
- *
- * <p><b>The re-emit-on-HIT subtlety is unchanged from Day 18</b> and worth
- * naming again: a redelivery usually means the previous ack failed. If we
- * skipped re-emission the orchestrator might never learn the step succeeded,
- * silently orphaning the saga. Republishing the cached result is cheap
- * (one outbox insert) and Day 16's degenerate-cases branch handles the
- * duplicate on the orchestrator side.
+ * GCP mirror of aws-adapter-worker's CommandExecutor. Same dedup / call /
+ * record / emit discipline; Day 21 blocks on the CompletableFuture the GCP
+ * Chaos client now returns and unwraps the ExecutionException.
  */
 @Service
 public class CommandExecutor {
@@ -84,8 +63,14 @@ public class CommandExecutor {
 
         try {
             String commitmentId = "saga-" + command.sagaId();
-            chaosClient.postCommitmentAction(commitmentId, action);
+            chaosClient.postCommitmentAction(commitmentId, action).get();
             recordAndEmitSuccess(command);
+        } catch (ExecutionException e) {
+            Throwable cause = e.getCause() != null ? e.getCause() : e;
+            recordAndEmitFailure(command, describe(cause));
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            recordAndEmitFailure(command, "Interrupted while calling Chaos API");
         } catch (Exception e) {
             recordAndEmitFailure(command, describe(e));
         }
@@ -111,7 +96,7 @@ public class CommandExecutor {
                 command.sagaId(), command.step(), command.direction(), reason);
     }
 
-    private static String describe(Exception e) {
+    private static String describe(Throwable e) {
         String message = e.getMessage();
         if (message == null) message = e.getClass().getSimpleName();
         if (message.length() > 400) message = message.substring(0, 400) + "...";

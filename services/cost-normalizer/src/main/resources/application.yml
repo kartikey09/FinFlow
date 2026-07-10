@@ -44,6 +44,14 @@ spring:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
       acks: all
+      # Day 21: idempotence + hard delivery cap. Plan says "kafka producer:
+      # just rely on built-in retries + idempotence" — no Resilience4j wrapper.
+      properties:
+        enable.idempotence: true
+        max.in.flight.requests.per.connection: 5
+        retries: 2147483647
+        delivery.timeout.ms: 120000
+        request.timeout.ms: 30000
     listener:
       ack-mode: manual
 
@@ -54,6 +62,36 @@ finflow:
   dedup:
     cache-size: 100000                      # L1 Caffeine cache: last 100k event ids
 
+# Day 21: Retry on transient DB write failures (plan: "database calls: just Retry").
+# Config-ready; annotate the write methods you want covered with @Retry(name="db-write").
+# See DAY21-MANIFEST for recommended call sites (OutboxAppender, projection saves).
+resilience4j:
+  retry:
+    instances:
+      db-write:
+        max-attempts: 3
+        wait-duration: 100ms
+        enable-exponential-backoff: true
+        exponential-backoff-multiplier: 2
+        retry-exceptions:
+          - org.springframework.dao.CannotAcquireLockException
+          - org.springframework.dao.DeadlockLoserDataAccessException
+          - org.springframework.dao.TransientDataAccessException
+        ignore-exceptions:
+          - org.springframework.dao.DuplicateKeyException
+          - org.springframework.dao.OptimisticLockingFailureException
+          - org.springframework.dao.DataIntegrityViolationException
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,retryevents
+  endpoint:
+    health:
+      show-details: always
+
 logging:
   level:
     io.finflow.normalizer: INFO
+    io.github.resilience4j: INFO

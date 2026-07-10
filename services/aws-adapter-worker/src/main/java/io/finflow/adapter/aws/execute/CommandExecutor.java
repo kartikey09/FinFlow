@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
+import java.util.concurrent.ExecutionException;
 
 /**
  * Day 18's heart. For one incoming {@link SagaCommand}:
@@ -22,8 +23,9 @@ import java.util.Optional;
  *      MISS → fall through.
  *
  *   2. Call the Chaos API endpoint mapped from step.
- *      Wrapped in Resilience4j: retry + circuit breaker + bulkhead (see AwsChaosClient).
- *      RestClient's read-timeout is our TimeLimiter (see AwsChaosClientConfig).
+ *      Wrapped in Resilience4j: retry + circuit breaker + time limiter + bulkhead
+ *      (see AwsChaosClient). RestClient's read-timeout is a backstop below the
+ *      7s TimeLimiter.
  *
  *   3. Record the outcome in processed_command (side effect happens exactly once).
  *
@@ -33,6 +35,14 @@ import java.util.Optional;
  *   @Transactional(MANDATORY). So the side-effect record and the result event
  *   commit or fail together.
  * </pre>
+ *
+ * <p><b>Day 21 change:</b> the Chaos client now returns
+ * {@code CompletableFuture<Void>} (so {@code @TimeLimiter} can cancel it at 7s).
+ * This method blocks on the future with {@code .get()} and unwraps the
+ * ExecutionException, keeping the same dedup+emit flow it always had. The
+ * blocking pattern is deliberate: this executor runs on a Kafka listener
+ * thread inside a {@code @Transactional}; we don't want the transaction's
+ * lifetime to depend on when a background thread finishes.
  *
  * <p><b>Why re-publish on a HIT?</b> Kafka redelivery of the command usually
  * means the previous attempt's ack failed. The orchestrator may not have seen
@@ -88,10 +98,22 @@ public class CommandExecutor {
             // one from the SagaInstance's payload. For the demo, it lets the
             // chaos-api's ChaosInterceptor decide the fate of the call.
             String commitmentId = "saga-" + command.sagaId();
-            chaosClient.postCommitmentAction(commitmentId, action);
+            // Day 21: block on the CompletableFuture. Resilience4j (Retry + CB +
+            // TimeLimiter + Bulkhead) is applied inside the future's execution;
+            // if it completes exceptionally, .get() throws ExecutionException
+            // wrapping the underlying HTTP or timeout cause.
+            chaosClient.postCommitmentAction(commitmentId, action).get();
             recordAndEmitSuccess(command);
+        } catch (ExecutionException e) {
+            // Unwrap the resilience-layer exception to get the underlying HTTP or timeout.
+            Throwable cause = e.getCause() != null ? e.getCause() : e;
+            recordAndEmitFailure(command, describe(cause));
+        } catch (InterruptedException e) {
+            // Preserve the interrupt flag for a well-behaved shutdown.
+            Thread.currentThread().interrupt();
+            recordAndEmitFailure(command, "Interrupted while calling Chaos API");
         } catch (Exception e) {
-            // Resilience4j has already retried; if we're here, the failure is
+            // Resilience4j has already retried; if we're here the failure is
             // final for this command. Report it as a business FAILURE — the
             // orchestrator's transition switch will start compensation.
             recordAndEmitFailure(command, describe(e));
@@ -118,7 +140,7 @@ public class CommandExecutor {
                 command.sagaId(), command.step(), command.direction(), reason);
     }
 
-    private static String describe(Exception e) {
+    private static String describe(Throwable e) {
         // Chop long stack-trace-ish messages; the reason field is capped at 512
         // and the orchestrator only needs the headline.
         String message = e.getMessage();

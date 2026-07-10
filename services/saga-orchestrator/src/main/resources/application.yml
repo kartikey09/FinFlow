@@ -39,14 +39,57 @@ spring:
       value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       properties:
         metadata.max.age.ms: 10000
+    producer:
+      # Day 21: producer for the DLT recoverer (Day 20 KafkaErrorHandlingConfig).
+      # Kafka's idempotence + retries do the work; no Resilience4j wrapper.
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
+      properties:
+        enable.idempotence: true
+        max.in.flight.requests.per.connection: 5
+        retries: 2147483647
+        delivery.timeout.ms: 120000
+        request.timeout.ms: 30000
     listener:
       ack-mode: manual
 
 finflow:
   tenant-id: default
 
+# Day 21: Retry on transient DB write failures for the SagaInstance write path.
+# CRITICAL: OptimisticLockingFailureException is EXCLUDED — on the saga that's
+# the signal another writer advanced the state, and Kafka redelivery (not an
+# in-process retry) is the correct recovery. Only deadlocks / connection blips retry.
+resilience4j:
+  retry:
+    instances:
+      db-write:
+        max-attempts: 3
+        wait-duration: 100ms
+        enable-exponential-backoff: true
+        exponential-backoff-multiplier: 2
+        retry-exceptions:
+          - org.springframework.dao.CannotAcquireLockException
+          - org.springframework.dao.DeadlockLoserDataAccessException
+          - org.springframework.dao.TransientDataAccessException
+        ignore-exceptions:
+          - org.springframework.dao.DuplicateKeyException
+          - org.springframework.dao.OptimisticLockingFailureException
+          - org.springframework.dao.DataIntegrityViolationException
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,retryevents
+  endpoint:
+    health:
+      show-details: always
+
 logging:
   level:
     io.finflow.saga: INFO
+    io.github.resilience4j: INFO
   pattern:
     console: "%d{HH:mm:ss} %-5level %cyan(%logger{0}) - %msg%n"

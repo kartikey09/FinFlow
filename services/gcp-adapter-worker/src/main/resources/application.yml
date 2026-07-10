@@ -48,41 +48,64 @@ finflow:
     read-timeout: 10s
     connect-timeout: 5s
 
-# Same values as aws-adapter-worker, just under a different instance name. If we
-# ever need per-vendor tuning (e.g. GCP's real API rate-limits differ from AWS),
-# this is where it would diverge.
+# Resilience4j: full stack per the plan's Day-21 tuning targets (gcp-chaos instance).
 resilience4j:
   retry:
     instances:
       gcp-chaos:
         max-attempts: 3
-        wait-duration: 500ms
+        wait-duration: 200ms
         enable-exponential-backoff: true
         exponential-backoff-multiplier: 2
         enable-randomized-wait: true
-        randomized-wait-factor: 0.5
+        randomized-wait-factor: 0.3
         retry-exceptions:
           - org.springframework.web.client.HttpServerErrorException
           - org.springframework.web.client.ResourceAccessException
           - java.io.IOException
+          - java.util.concurrent.TimeoutException
+        ignore-exceptions:
+          - org.springframework.web.client.HttpClientErrorException
   circuitbreaker:
     instances:
       gcp-chaos:
         sliding-window-type: COUNT_BASED
-        sliding-window-size: 10
-        minimum-number-of-calls: 5
+        sliding-window-size: 20
+        minimum-number-of-calls: 10
         failure-rate-threshold: 50
         wait-duration-in-open-state: 30s
         permitted-number-of-calls-in-half-open-state: 3
         automatic-transition-from-open-to-half-open-enabled: true
+  timelimiter:
+    instances:
+      gcp-chaos:
+        timeout-duration: 7s
+        cancel-running-future: true
   bulkhead:
     instances:
       gcp-chaos:
         max-concurrent-calls: 10
         max-wait-duration: 100ms
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,circuitbreakers,circuitbreakerevents,retryevents,bulkheads,timelimiters
+  endpoint:
+    circuitbreakers:
+      enabled: true
+    circuitbreakerevents:
+      enabled: true
+    health:
+      show-details: always
+  health:
+    circuitbreakers:
+      enabled: true
+
 logging:
   level:
     io.finflow.adapter.gcp: INFO
+    io.github.resilience4j: INFO
   pattern:
     console: "%d{HH:mm:ss} %-5level %cyan(%logger{0}) - %msg%n"

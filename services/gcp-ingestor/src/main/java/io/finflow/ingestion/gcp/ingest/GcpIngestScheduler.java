@@ -15,6 +15,10 @@ import org.springframework.stereotype.Component;
  * page to {@link GcpIngestService#persistPage}. {@code fixedDelay} prevents
  * overlap; a failure that survived retries is logged and retried next tick with
  * the cursor unmoved.
+ *
+ * <p>Day 21: fetchPage returns a CompletableFuture (TimeLimiter enforces a 7s
+ * deadline). We block on it with .get(); the existing catch absorbs failures
+ * and we retry next cycle. Nothing else about the poll loop changes.
  */
 @Component
 public class GcpIngestScheduler {
@@ -35,7 +39,8 @@ public class GcpIngestScheduler {
     public void poll() {
         try {
             String token = ingestService.currentToken();
-            GcpBillingExportPage page = client.fetchPage(token);
+            // Day 21: fetchPage returns CompletableFuture; block for the result.
+            GcpBillingExportPage page = client.fetchPage(token).get();
             if (page == null || page.rows() == null) {
                 log.warn("GCP ingest: empty billing-export response (token={}), skipping", token);
                 return;
@@ -43,6 +48,9 @@ public class GcpIngestScheduler {
             int persisted = ingestService.persistPage(page);
             log.info("GCP ingest: {} new of {} row(s), nextPageToken={}",
                     persisted, page.rows().size(), page.nextPageToken());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.warn("GCP ingest poll interrupted");
         } catch (Exception e) {
             log.warn("GCP ingest poll failed (retry next cycle): {}", e.toString());
         }

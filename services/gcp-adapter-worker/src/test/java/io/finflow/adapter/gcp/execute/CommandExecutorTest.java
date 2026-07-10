@@ -8,17 +8,16 @@ import io.finflow.adapter.gcp.dedup.ProcessedCommandRepository;
 import io.finflow.adapter.gcp.emit.SagaEventEmitter;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
-import org.springframework.web.client.HttpServerErrorException;
 
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -27,13 +26,12 @@ import static org.mockito.Mockito.when;
 
 /**
  * Same six behaviors as aws-adapter-worker's CommandExecutorTest — the executor
- * is the mirror, so its guarantees should be the mirror too:
- *   1. First-time DO: chaos call, dedup SUCCESS, success event.
- *   2. Redelivery HIT (success): no chaos, cached success event re-emitted.
- *   3. Redelivery HIT (failure): no chaos, cached failure event + reason.
- *   4. Chaos failure: dedup FAILURE, failure event + reason, no throw.
- *   5. Unknown step: reported as FAILURE.
- *   6. Malformed command: dropped silently.
+ * is the mirror, so its guarantees should be the mirror too.
+ *
+ * <p>Day 21 update: the Chaos client now returns {@code CompletableFuture<Void>}
+ * (so {@code @TimeLimiter} can enforce a 7s deadline). The success case stubs a
+ * completed future; the failure case stubs an exceptionally-completed future
+ * (the executor blocks with .get() and unwraps the ExecutionException).
  */
 class CommandExecutorTest {
 
@@ -51,6 +49,8 @@ class CommandExecutorTest {
         SagaCommand cmd = new SagaCommand(sagaId, "ACQUIRE_LOCK", "DO",
                 sagaId + ":ACQUIRE_LOCK:DO");
         when(processedRepo.findById(cmd.idempotencyKey())).thenReturn(Optional.empty());
+        when(chaosClient.postCommitmentAction(anyString(), eq("lock")))
+                .thenReturn(CompletableFuture.completedFuture(null));
 
         executor.execute(cmd);
 
@@ -103,12 +103,9 @@ class CommandExecutorTest {
         SagaCommand cmd = new SagaCommand(sagaId, "RESERVE_TARGET", "DO",
                 sagaId + ":RESERVE_TARGET:DO");
         when(processedRepo.findById(cmd.idempotencyKey())).thenReturn(Optional.empty());
-        doThrow(HttpServerErrorException.create(
-                org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE,
-                "503 Service Unavailable",
-                new org.springframework.http.HttpHeaders(),
-                new byte[0], null))
-                .when(chaosClient).postCommitmentAction(anyString(), eq("reserve"));
+        CompletableFuture<Void> failed = new CompletableFuture<>();
+        failed.completeExceptionally(new RuntimeException("503 Service Unavailable"));
+        when(chaosClient.postCommitmentAction(anyString(), eq("reserve"))).thenReturn(failed);
 
         executor.execute(cmd);
 

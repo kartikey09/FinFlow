@@ -15,11 +15,19 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
+/**
+ * Day 21 update: the Chaos client now returns {@code CompletableFuture<Void>}
+ * (so {@code @TimeLimiter} can enforce a 7s deadline). The success case stubs a
+ * completed future; the failure case stubs an exceptionally-completed future
+ * (the executor blocks with .get() and unwraps the ExecutionException). All
+ * other assertions are unchanged from Day 18.
+ */
 @ExtendWith(MockitoExtension.class)
 class CommandExecutorTest {
 
@@ -39,6 +47,8 @@ class CommandExecutorTest {
         UUID sagaId = UUID.randomUUID();
         SagaCommand command = new SagaCommand(sagaId, "ACQUIRE_LOCK", "DO", "key-1");
         when(processedRepository.findById("key-1")).thenReturn(Optional.empty());
+        when(chaosClient.postCommitmentAction(anyString(), eq("lock")))
+                .thenReturn(CompletableFuture.completedFuture(null));
 
         executor.execute(command);
 
@@ -55,8 +65,11 @@ class CommandExecutorTest {
         UUID sagaId = UUID.randomUUID();
         SagaCommand command = new SagaCommand(sagaId, "VERIFY_COMMITMENT", "DO", "key-2");
         when(processedRepository.findById("key-2")).thenReturn(Optional.empty());
-        doThrow(new RuntimeException("503 Service Unavailable"))
-                .when(chaosClient).postCommitmentAction(anyString(), eq("verify"));
+        // Day 21: the client returns an exceptionally-completed future rather than
+        // throwing synchronously (that's what a real 503-through-Resilience4j does now).
+        CompletableFuture<Void> failed = new CompletableFuture<>();
+        failed.completeExceptionally(new RuntimeException("503 Service Unavailable"));
+        when(chaosClient.postCommitmentAction(anyString(), eq("verify"))).thenReturn(failed);
 
         executor.execute(command);
 

@@ -51,8 +51,37 @@ finflow:
   cors:
     allowed-origins: "http://localhost:3000"
 
+# Day 21: Retry on transient DB write failures (projection upserts). Config-ready;
+# opt-in via @Retry(name="db-write"). query-api has no producer (pure read sink).
+resilience4j:
+  retry:
+    instances:
+      db-write:
+        max-attempts: 3
+        wait-duration: 100ms
+        enable-exponential-backoff: true
+        exponential-backoff-multiplier: 2
+        retry-exceptions:
+          - org.springframework.dao.CannotAcquireLockException
+          - org.springframework.dao.DeadlockLoserDataAccessException
+          - org.springframework.dao.TransientDataAccessException
+        ignore-exceptions:
+          - org.springframework.dao.DuplicateKeyException
+          - org.springframework.dao.OptimisticLockingFailureException
+          - org.springframework.dao.DataIntegrityViolationException
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,retryevents
+  endpoint:
+    health:
+      show-details: always
+
 logging:
   level:
     io.finflow.query: INFO
+    io.github.resilience4j: INFO
   pattern:
     console: "%d{HH:mm:ss} %-5level %cyan(%logger{0}) - %msg%n"

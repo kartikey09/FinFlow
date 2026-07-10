@@ -26,8 +26,12 @@ import org.springframework.stereotype.Component;
  * 1. Fast read (get cursor).
  * 2. SLOW network call (fetch page) -> NO TRANSACTION HELD.
  * 3. Fast write (persist page) -> OPENS AND CLOSES TRANSACTION INSTANTLY.
+ *
+ * <p>Day 21: fetchPage now returns a CompletableFuture (so the TimeLimiter can
+ * enforce a 7s deadline). We block on it with .get(); the existing catch still
+ * absorbs failures and we retry on the next scheduled cycle. Nothing else about
+ * the poll loop changes.
  */
-
 @Component
 public class AwsIngestScheduler {
     // to print standard operational metrics (like "Saved 100 rows") and to safely log
@@ -49,7 +53,9 @@ public class AwsIngestScheduler {
     public void poll(){
         try{
             String token = ingestService.currentToken();
-            CostAndUsageReportPage page = client.fetchPage(token);
+            // Day 21: fetchPage returns CompletableFuture; block for the result.
+            // Resilience4j (Retry + CB + TimeLimiter) is applied inside the call.
+            CostAndUsageReportPage page = client.fetchPage(token).get();
             if(page==null || page.lineItems()==null){
                 log.warn("AWS ingest: empty CUR response (token={}), skipping", token);
                 return;
@@ -57,6 +63,10 @@ public class AwsIngestScheduler {
             int persisted = ingestService.persistPage(page);
             log.info("AWS ingest: {} new of {} line item(s), nextToken={}",
                     persisted, page.lineItems().size(), page.nextToken());
+        }
+        catch (InterruptedException e){
+            Thread.currentThread().interrupt();
+            log.warn("AWS ingest poll interrupted");
         }
         catch (Exception e){
             log.warn("AWS ingest poll failed (retry next cycle): {}", e.toString());
