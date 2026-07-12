@@ -1,5 +1,7 @@
 package io.finflow.chaosapi.chaos;
 
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
@@ -7,6 +9,8 @@ import org.slf4j.LoggerFactory;
 
 //importing a Spring feature that allows you to hook into the lifecycle of an HTTP request
 import org.springframework.web.servlet.HandlerInterceptor;
+
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * The "Bouncer" that enforces the chaos rules.
@@ -23,21 +27,33 @@ import org.springframework.web.servlet.HandlerInterceptor;
  * chaos. We do not have to write messy error-throwing code inside our actual
  * AWS or GCP controllers. The controllers remain perfectly clean, while this
  * interceptor creates a highly hostile network environment around them.
+ *
+ * <h2>Day 22: finflow.chaos.faults.injected</h2>
+ *
+ * <p>Every decision increments {@code finflow.chaos.faults.injected} tagged with
+ * {@code outcome} (pass|fail_503|hang) and {@code vendor} (aws|gcp|other). This
+ * is what the Day-23 Reliability dashboard plots as "chaos fault rate" — and
+ * it's the ground truth to correlate against the downstream services'
+ * circuit-breaker states and retry counts. Counting PASS too (not just faults)
+ * lets the dashboard compute an actual injected-fault RATE, not just a raw count.
  */
-
 //By implementing HandlerInterceptor, officially creating a middleman
 public class ChaosInterceptor implements HandlerInterceptor{
 
     private static final Logger log = LoggerFactory.getLogger(ChaosInterceptor.class);
+    private static final String COUNTER_NAME = "finflow.chaos.faults.injected";
 
     /**
      * What it does: The Interceptor doesn't know when to block people, it just knows how to block people.
      * Here, you inject your ChaosDecider so the Interceptor can ask it what to do on every single request.
      */
     private final ChaosDecider decider;
+    private final MeterRegistry meterRegistry;
+    private final ConcurrentHashMap<String, Counter> counters = new ConcurrentHashMap<>();
 
-    public ChaosInterceptor(ChaosDecider decider){
+    public ChaosInterceptor(ChaosDecider decider, MeterRegistry meterRegistry){
         this.decider = decider;
+        this.meterRegistry = meterRegistry;
     }
 
     /**
@@ -50,11 +66,14 @@ public class ChaosInterceptor implements HandlerInterceptor{
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler)
         throws Exception {
-        String tag = prefixFor(request.getRequestURI()); //Grabs the URL the user is trying to reach
+        String uri = request.getRequestURI();
+        String tag = prefixFor(uri); //Grabs the URL the user is trying to reach
         // (e.g., /aws/cost-and-usage-report) and generates a clean logging tag like [AWS-CHAOS] so your terminal output is easy to read.
+        String vendor = vendorFor(uri);
 
-        switch(decider.decide(request.getRequestURI())){ //Day 20: URI-aware so a target-path filter can single out one saga step.
+        switch(decider.decide(uri)){ //Day 20: URI-aware so a target-path filter can single out one saga step.
             case PASS -> {
+                count("pass", vendor);
                 return true;  //If the dice roll says PASS, it immediately returns true. The Bouncer steps aside,
                               // and the user reaches the target controller completely unaware they were just evaluated.
             }
@@ -66,7 +85,8 @@ public class ChaosInterceptor implements HandlerInterceptor{
              * CRITICAL: It returns false. This prevents the AwsBillingController from ever executing.
              */
             case FAIL_503 -> {
-                log.warn("{} INJECTING 503 for {} {}", tag, request.getMethod(), request.getRequestURI());
+                count("fail_503", vendor);
+                log.warn("{} INJECTING 503 for {} {}", tag, request.getMethod(), uri);
                 response.setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE); //503
                 response.setContentType("application/json");
                 response.getWriter().write(
@@ -83,13 +103,25 @@ public class ChaosInterceptor implements HandlerInterceptor{
              * As the comment notes, this is a "slow success" designed to test if the downstream service has a Timeout limit configured.
              */
             case HANG -> {
+                count("hang", vendor);
                 long ms = decider.hangMillis();
-                log.warn("{} INJECTING {}ms HANG for {} {}", tag, ms, request.getMethod(), request.getRequestURI());
+                log.warn("{} INJECTING {}ms HANG for {} {}", tag, ms, request.getMethod(), uri);
                 Thread.sleep(ms);
                 return true;
             }
         }
         return true;
+    }
+
+    private void count(String outcome, String vendor) {
+        if (meterRegistry == null) return;
+        counters.computeIfAbsent(outcome + "|" + vendor, key ->
+                Counter.builder(COUNTER_NAME)
+                        .description("Chaos decisions made by the interceptor, by outcome and vendor")
+                        .tag("outcome", outcome)
+                        .tag("vendor", vendor)
+                        .register(meterRegistry)
+        ).increment();
     }
 
     //Logging Helper
@@ -99,9 +131,15 @@ public class ChaosInterceptor implements HandlerInterceptor{
         if(uri.startsWith("/gcp"))
             return "[GCP-CHAOS]";
 
-        if(uri.startsWith("aws"))
+        if(uri.startsWith("/aws"))
             return "[AWS-CHAOS]";
 
         return "[CHAOS]";
+    }
+
+    private String vendorFor(String uri){
+        if(uri.startsWith("/gcp")) return "gcp";
+        if(uri.startsWith("/aws")) return "aws";
+        return "other";
     }
 }

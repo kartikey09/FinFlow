@@ -4,6 +4,8 @@ import io.github.resilience4j.bulkhead.annotation.Bulkhead;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.github.resilience4j.retry.annotation.Retry;
 import io.github.resilience4j.timelimiter.annotation.TimeLimiter;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -45,12 +47,22 @@ import java.util.concurrent.Executors;
  * so one Kafka message = one CB unit (retries counted as one), a Bulkhead
  * permit is held only for one attempt, and a 7s TimeLimiter fires per attempt
  * (not across the whole 3× budget).
+ *
+ * <h2>Day 22: finflow.chaos.call.latency</h2>
+ *
+ * <p>Each HTTP attempt is timed and recorded to {@code finflow.chaos.call.latency}
+ * tagged by {@code endpoint} (the action: lock/verify/reserve/release/update-ledger)
+ * and {@code outcome} (success|failure). Because the timer is INSIDE the
+ * supplyAsync body, it measures ONE attempt — so the histogram reflects real
+ * per-call latency, and a 5s chaos hang shows up as a 5s bucket. The dashboard
+ * plots p50/p95/p99 per endpoint, success vs fail.
  */
 @Component
 public class AwsChaosClient {
 
     private static final Logger log = LoggerFactory.getLogger(AwsChaosClient.class);
     private static final String INSTANCE = "aws-chaos";
+    private static final String LATENCY_METRIC = "finflow.chaos.call.latency";
 
     /**
      * Named executor for the CompletableFuture.supplyAsync. Daemon threads so
@@ -64,9 +76,11 @@ public class AwsChaosClient {
     });
 
     private final RestClient restClient;
+    private final MeterRegistry meterRegistry;
 
-    public AwsChaosClient(RestClient chaosApiRestClient) {
+    public AwsChaosClient(RestClient chaosApiRestClient, MeterRegistry meterRegistry) {
         this.restClient = chaosApiRestClient;
+        this.meterRegistry = meterRegistry;
     }
 
     /**
@@ -74,16 +88,6 @@ public class AwsChaosClient {
      * future completes normally on 2xx; completes exceptionally (wrapped in
      * ExecutionException at the call site) on 4xx/5xx that survives Retry, or
      * on a TimeLimiter timeout.
-     *
-     * <p>Caller pattern in CommandExecutor:
-     * <pre>{@code
-     *   try {
-     *     chaosClient.postCommitmentAction(id, action).get();  // blocks
-     *     recordAndEmitSuccess(...);
-     *   } catch (ExecutionException e) {
-     *     recordAndEmitFailure(..., describe(e.getCause()));
-     *   }
-     * }</pre>
      */
     @Retry(name = INSTANCE)
     @CircuitBreaker(name = INSTANCE)
@@ -93,11 +97,25 @@ public class AwsChaosClient {
         return CompletableFuture.supplyAsync(() -> {
             String path = "/aws/commitments/" + commitmentId + "/" + action;
             log.debug("Chaos call POST {}", path);
-            restClient.post()
-                    .uri(path)
-                    .retrieve()
-                    .toBodilessEntity();   // discard body; 2xx is all we need
-            return null;
+            Timer.Sample sample = Timer.start(meterRegistry);
+            String outcome = "success";
+            try {
+                restClient.post()
+                        .uri(path)
+                        .retrieve()
+                        .toBodilessEntity();   // discard body; 2xx is all we need
+                return null;
+            } catch (RuntimeException e) {
+                outcome = "failure";
+                throw e;
+            } finally {
+                sample.stop(Timer.builder(LATENCY_METRIC)
+                        .description("Latency of one Chaos API call attempt, by endpoint and outcome")
+                        .tag("endpoint", action)
+                        .tag("outcome", outcome)
+                        .publishPercentileHistogram()
+                        .register(meterRegistry));
+            }
         }, CHAOS_EXECUTOR);
     }
 }

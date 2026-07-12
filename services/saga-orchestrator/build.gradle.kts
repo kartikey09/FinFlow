@@ -11,6 +11,8 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
     implementation("org.springframework.boot:spring-boot-starter-web")       // Day 17: REST endpoint
     implementation("org.springframework.boot:spring-boot-starter-actuator")
+    // Day 22: Prometheus registry — exposes /actuator/prometheus for scraping.
+    implementation("io.micrometer:micrometer-registry-prometheus")
     implementation("org.springframework.kafka:spring-kafka")                 // Day 17: consumer for saga.events
     implementation("com.fasterxml.jackson.core:jackson-databind")
 

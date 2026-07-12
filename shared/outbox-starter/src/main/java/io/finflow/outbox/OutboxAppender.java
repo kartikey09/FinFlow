@@ -2,11 +2,14 @@ package io.finflow.outbox;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * The single entry point for emitting a domain event through the outbox.
@@ -28,16 +31,43 @@ import java.util.UUID;
  * transaction and throws if there isn't one. That makes it IMPOSSIBLE to call
  * append() outside a transaction (which would defeat the whole point by writing
  * the event non-atomically). The foot-gun is removed at the framework level.
+ *
+ * <h2>Day 22: events.published metric</h2>
+ *
+ * <p>Every append increments {@code finflow.events.published} tagged by
+ * {@code aggregate_type} (which is the Kafka topic the event routes to). The
+ * MeterRegistry is optional — if none is on the classpath the appender behaves
+ * exactly as before. Counters are cached per aggregate_type so we don't rebuild
+ * the meter on every call.
+ *
+ * <p>The counter increments AFTER {@code repository.save} returns, so a
+ * serialization failure or a rolled-back transaction won't inflate it. (Strictly,
+ * a transaction that rolls back AFTER save still counts here — but Micrometer
+ * counters are monotonic and this is a "how many events did we hand to the
+ * outbox" signal, not a "how many committed" signal. The DLT/consumer metrics
+ * cover the delivered side.)
  */
-
 public class OutboxAppender {
+
+    private static final String COUNTER_NAME = "finflow.events.published";
 
     private final OutboxEventRepository repository;
     private final ObjectMapper objectMapper;
 
+    /** Nullable — the library works without Micrometer on the classpath. */
+    private final MeterRegistry meterRegistry;
+    private final ConcurrentHashMap<String, Counter> countersByTopic = new ConcurrentHashMap<>();
+
+    /** Legacy 2-arg constructor kept for any code / tests that build it directly. */
     public OutboxAppender(OutboxEventRepository repository, ObjectMapper objectMapper) {
+        this(repository, objectMapper, null);
+    }
+
+    public OutboxAppender(OutboxEventRepository repository, ObjectMapper objectMapper,
+                          MeterRegistry meterRegistry) {
         this.repository = repository;
         this.objectMapper = objectMapper;
+        this.meterRegistry = meterRegistry;
     }
 
     @Transactional(propagation = Propagation.MANDATORY)
@@ -58,7 +88,21 @@ public class OutboxAppender {
                 json,
                 OffsetDateTime.now());
 
-        return repository.save(event);
+        OutboxEvent saved = repository.save(event);
+        recordPublished(aggregateType);
+        return saved;
+    }
+
+    private void recordPublished(String aggregateType) {
+        if (meterRegistry == null) {
+            return;
+        }
+        countersByTopic.computeIfAbsent(aggregateType, topic ->
+                Counter.builder(COUNTER_NAME)
+                        .description("Domain events appended to the outbox, by aggregate type (= Kafka topic)")
+                        .tag("topic", topic)
+                        .register(meterRegistry)
+        ).increment();
     }
 }
 

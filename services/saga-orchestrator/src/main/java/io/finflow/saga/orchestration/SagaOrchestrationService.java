@@ -3,6 +3,7 @@ package io.finflow.saga.orchestration;
 import io.finflow.saga.command.SagaCommand;
 import io.finflow.saga.domain.SagaInstanceRepository;
 import io.finflow.saga.event.SagaEvent;
+import io.finflow.saga.metrics.SagaMetrics;
 import io.finflow.saga.model.SagaInstance;
 import io.finflow.saga.model.SagaState;
 import io.finflow.saga.model.SagaStep;
@@ -16,6 +17,8 @@ import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -28,7 +31,7 @@ import java.util.UUID;
  *
  * <p>Two entry points:
  * <ol>
- *   <li>{@link #startRebalance(String)} — creates a fresh {@link SagaInstance}
+ *   <li>{@link #startRebalance(String, Vendor)} — creates a fresh {@link SagaInstance}
  *       in {@code STARTED} and emits the first command ({@code Do(ACQUIRE_LOCK)}).
  *       Called from the REST endpoint.</li>
  *   <li>{@link #handleEvent(SagaEvent)} — loads the saga, runs {@code evaluate},
@@ -49,6 +52,10 @@ import java.util.UUID;
  *       now the state HAS advanced, so {@code evaluate}'s degenerate-case
  *       branches make it a no-op (verified by Day 16's tests).</li>
  * </ul>
+ *
+ * <p>Day 22: emits {@code finflow.saga.step.duration} on each completed step
+ * (see {@link SagaMetrics}). The {@code finflow.saga.active} gauge lives entirely
+ * in SagaMetrics (scrape-driven), so it needs no hook here.
  */
 @Service
 public class SagaOrchestrationService {
@@ -58,13 +65,16 @@ public class SagaOrchestrationService {
     private final SagaInstanceRepository sagaRepository;
     private final SagaTransitionService transitionService;
     private final SagaCommandEmitter commandEmitter;
+    private final SagaMetrics sagaMetrics;
 
     public SagaOrchestrationService(SagaInstanceRepository sagaRepository,
                                     SagaTransitionService transitionService,
-                                    SagaCommandEmitter commandEmitter) {
+                                    SagaCommandEmitter commandEmitter,
+                                    SagaMetrics sagaMetrics) {
         this.sagaRepository = sagaRepository;
         this.transitionService = transitionService;
         this.commandEmitter = commandEmitter;
+        this.sagaMetrics = sagaMetrics;
     }
 
     /**
@@ -124,6 +134,9 @@ public class SagaOrchestrationService {
         SagaInstance saga = maybeSaga.get();
 
         SagaState stateBefore = saga.getCurrentState();
+        // Day 22: capture when the command for the current step was emitted, so
+        // we can measure how long the round-trip took once the result arrives.
+        OffsetDateTime stepStartedAt = saga.getUpdatedAt();
         TransitionResult result = transitionService.evaluate(
                 stateBefore, saga.getCompletedSteps(), event);
 
@@ -137,6 +150,12 @@ public class SagaOrchestrationService {
 
         try {
             saga.applyTransition(result.nextState(), result.justCompleted());
+            // Day 22: record the step's round-trip duration (emit -> result event).
+            if (result.justCompleted() != null && stepStartedAt != null) {
+                sagaMetrics.recordStepDuration(
+                        result.justCompleted(),
+                        Duration.between(stepStartedAt, OffsetDateTime.now()));
+            }
             // Compensation reverse-walk: a successful Undo (a StepSucceeded while
             // COMPENSATING) unwound the most-recently-completed step, so pop it off
             // the stack. The transition service reads the tail of completed_steps to

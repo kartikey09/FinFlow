@@ -97,7 +97,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics,circuitbreakers,circuitbreakerevents,retryevents,bulkheads,timelimiters
+        include: health,info,metrics,circuitbreakers,circuitbreakerevents,retryevents,bulkheads,timelimiters,prometheus
   endpoint:
     circuitbreakers:
       enabled: true
