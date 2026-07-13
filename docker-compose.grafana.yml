@@ -1,0 +1,84 @@
+# Day 23: Grafana + kafka-exporter overlay.
+#
+# Usage (compose merges -f files left-to-right):
+#   docker compose -f docker-compose.yml \
+#                  -f docker-compose.prometheus.yml \
+#                  -f docker-compose.grafana.yml up -d
+#
+# Grafana  -> http://localhost:3000  (admin / admin, password change disabled)
+# Both dashboards are auto-provisioned into the "FinFlow" folder on boot.
+
+name: finflow
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # kafka-exporter — broker-side consumer lag.
+  #
+  # WHY THIS EXISTS (and why we don't use the Kafka client's own metrics):
+  # Spring Boot + Micrometer already exposes kafka_consumer_fetch_manager_records_lag
+  # from each consumer. That metric is a TRAP for a reliability dashboard: it is
+  # reported BY the consumer, so when the consumer dies or wedges, the metric
+  # disappears — precisely at the moment you most need to see lag exploding.
+  #
+  # kafka-exporter reads lag from the broker's __consumer_offsets topic instead.
+  # It keeps reporting (and climbing) even when every consumer is dead. That is
+  # the failure mode a Reliability dashboard exists to catch, so this is the
+  # authoritative source for the "consumer lag" panels.
+  # ---------------------------------------------------------------------------
+  kafka-exporter:
+    image: danielqsj/kafka-exporter:v1.7.0
+    container_name: finflow-kafka-exporter
+    command:
+      - "--kafka.server=kafka:9092"     # Kafka's INTERNAL listener (see main compose)
+      - "--web.listen-address=:9308"
+    ports:
+      - "9308:9308"                      # /metrics — Prometheus scrapes this
+    depends_on:
+      - kafka
+    restart: unless-stopped              # exporter races Kafka's startup; just retry
+    networks:
+      - finflow-net
+
+  # ---------------------------------------------------------------------------
+  # Grafana — the thing you actually demo.
+  # ---------------------------------------------------------------------------
+  grafana:
+    image: grafana/grafana:11.2.0
+    container_name: finflow-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      # Skip the "change your password" interstitial — it's a local demo.
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      # Land on the Business dashboard when you open localhost:3000.
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/business.json
+      # The Postgres datasource needs this to run raw SQL.
+      GF_FEATURE_TOGGLES_ENABLE: ""
+    volumes:
+      # Provisioning: datasources + dashboard provider (read-only — they're config).
+      - ./infra/grafana/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
+      - ./infra/grafana/dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml:ro
+      # The dashboard JSONs themselves. Bind-mounted (not baked into a volume) so
+      # editing the file in git and waiting 10s reloads it in the browser.
+      - ./infra/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      # Grafana's own state (users, prefs). Named volume so `down` doesn't wipe it.
+      - finflow-grafana-data:/var/lib/grafana
+    depends_on:
+      - prometheus
+      - postgres
+    networks:
+      - finflow-net
+
+volumes:
+  finflow-grafana-data:
+    name: finflow-grafana-data
+
+networks:
+  finflow-net:
+    external: true
+    name: finflow-net

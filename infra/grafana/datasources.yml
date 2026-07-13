@@ -1,0 +1,54 @@
+# Grafana datasource provisioning.
+#
+# Mounted at /etc/grafana/provisioning/datasources/ so Grafana picks these up on
+# boot — no click-ops, and the config is version-controlled (which is the whole
+# point of the plan's "provision via a file" requirement).
+#
+# TWO datasources, deliberately:
+#
+#   1. Prometheus  — OPERATIONAL metrics (sagas in flight, outbox backlog,
+#      circuit-breaker state, chaos fault rate, latency histograms). These are
+#      sampled time-series with bounded retention (7d), which is exactly right
+#      for "is the system healthy right now".
+#
+#   2. Postgres    — BUSINESS data (spend by vendor / team / service). Spend is
+#      financial data: it needs to be exact, complete, and retained forever. A
+#      metrics TSDB is the wrong home for it — Prometheus samples every 10s and
+#      drops data after 7 days, so your cost-of-record would be lossy AND
+#      short-lived. The cost_ledger table is already the system of record and
+#      already has an index on vendor, so Grafana reads it directly.
+#
+# This split is the point: Reliability dashboard = Prometheus, Business
+# dashboard = mostly Postgres. Mixing datasources in one Grafana is normal and
+# is what a real FinOps console does.
+
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    uid: finflow-prometheus          # dashboards reference this uid explicitly
+    access: proxy
+    url: http://prometheus:9090      # service name on finflow-net (Day 22 overlay)
+    isDefault: true
+    editable: false
+    jsonData:
+      httpMethod: POST
+      # Must be >= the Prometheus global scrape_interval (10s) or Grafana will
+      # request finer resolution than the data actually has and draw gaps.
+      timeInterval: "10s"
+
+  - name: Postgres
+    type: postgres
+    uid: finflow-postgres
+    access: proxy
+    url: postgres:5432               # service name on finflow-net (main compose)
+    user: finflow
+    database: finflow
+    editable: false
+    secureJsonData:
+      password: finflow              # matches POSTGRES_PASSWORD in docker-compose.yml
+    jsonData:
+      sslmode: disable               # local dev only
+      postgresVersion: 1600          # Postgres 16
+      timescaledb: false

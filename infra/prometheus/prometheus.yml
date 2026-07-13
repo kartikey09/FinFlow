@@ -8,6 +8,10 @@
 #
 # Every Spring Boot service exposes Prometheus format at /actuator/prometheus
 # (Day 22 added micrometer-registry-prometheus + the exposure).
+#
+# Day 23 change: added the kafka-exporter job. It runs IN compose (unlike the
+# services), so it's reachable by its compose service name on finflow-net — no
+# host.docker.internal needed.
 
 global:
   scrape_interval: 10s          # fast enough for a live demo; not so fast it's noisy
@@ -17,7 +21,7 @@ global:
     project: finflow
 
 scrape_configs:
-  # ---- The 8 Spring Boot services + chaos-api ----
+  # ---- The 8 Spring Boot services + chaos-api (on the HOST) ----
   - job_name: finflow-services
     metrics_path: /actuator/prometheus
     static_configs:
@@ -39,6 +43,15 @@ scrape_configs:
         labels: {service: gcp-adapter-worker}
       - targets: ["host.docker.internal:9000"]
         labels: {service: chaos-api}
+
+  # ---- Day 23: kafka-exporter — BROKER-side consumer lag (in compose) ----
+  # Gives kafka_consumergroup_lag{consumergroup, topic, partition}. Unlike the
+  # consumers' own client metrics, this keeps reporting when a consumer dies —
+  # which is exactly when lag matters most.
+  - job_name: kafka-exporter
+    static_configs:
+      - targets: ["kafka-exporter:9308"]
+        labels: {service: kafka}
 
   # ---- Prometheus scrapes itself (useful for sanity + the "up" panel) ----
   - job_name: prometheus

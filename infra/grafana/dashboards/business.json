@@ -1,0 +1,967 @@
+{
+  "uid": "finflow-business",
+  "title": "FinFlow \u2014 Business",
+  "description": "Spend, sagas, and commitment health. Spend comes from Postgres (exact, permanent); saga/commitment signals come from Prometheus (operational, sampled).",
+  "tags": [
+    "finflow",
+    "business",
+    "finops"
+  ],
+  "timezone": "browser",
+  "editable": true,
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "timepicker": {
+    "refresh_intervals": [
+      "5s",
+      "10s",
+      "30s",
+      "1m",
+      "5m",
+      "15m",
+      "1h"
+    ]
+  },
+  "graphTooltip": 1,
+  "panels": [
+    {
+      "id": 1,
+      "type": "row",
+      "title": "Spend \u2014 from Postgres (cost_ledger is the system of record)",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Total spend (USD)",
+      "datasource": {
+        "type": "postgres",
+        "uid": "finflow-postgres"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 0,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "postgres",
+            "uid": "finflow-postgres"
+          },
+          "rawSql": "SELECT COALESCE(SUM(cost_usd), 0)::float8 AS \"Total spend\" FROM cost_ledger;",
+          "rawQuery": true,
+          "format": "table",
+          "editorMode": "code"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "mappings": [],
+          "unit": "currencyUSD",
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "description": "All-time normalized spend across every vendor. Read straight from the cost_ledger table \u2014 the system of record \u2014 not from Prometheus, because financial data needs to be exact and permanent."
+    },
+    {
+      "id": 3,
+      "type": "piechart",
+      "title": "Spend by vendor",
+      "datasource": {
+        "type": "postgres",
+        "uid": "finflow-postgres"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 6,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "postgres",
+            "uid": "finflow-postgres"
+          },
+          "rawSql": "SELECT vendor, SUM(cost_usd)::float8 AS spend FROM cost_ledger GROUP BY vendor ORDER BY spend DESC;",
+          "rawQuery": true,
+          "format": "table",
+          "editorMode": "code"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "unit": "currencyUSD",
+          "custom": {
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "displayLabels": [
+          "percent"
+        ],
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "values": [
+            "value"
+          ]
+        },
+        "pieType": "donut",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "description": "The headline FinOps number: where the money goes. cost_ledger has an index on vendor, so this is a cheap grouped aggregate."
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Spend over time by vendor",
+      "datasource": {
+        "type": "postgres",
+        "uid": "finflow-postgres"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 12,
+        "y": 1
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "postgres",
+            "uid": "finflow-postgres"
+          },
+          "rawSql": "SELECT $__timeGroupAlias(normalized_at, $__interval), vendor AS metric, SUM(cost_usd)::float8 AS spend FROM cost_ledger WHERE $__timeFilter(normalized_at) GROUP BY 1, vendor ORDER BY 1;",
+          "rawQuery": true,
+          "format": "time_series",
+          "editorMode": "code"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 12,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "currencyUSD"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "description": "Spend bucketed by normalized_at (when cost-normalizer wrote the row). Honest caveat: this is INGESTION time, not the vendor's usage time \u2014 usage_start is a vendor-format string, not a timestamp, so it can't be time-grouped without a cast. See the manifest."
+    },
+    {
+      "id": 5,
+      "type": "bargauge",
+      "title": "Spend by team (top 10)",
+      "datasource": {
+        "type": "postgres",
+        "uid": "finflow-postgres"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "postgres",
+            "uid": "finflow-postgres"
+          },
+          "rawSql": "SELECT team, SUM(cost_usd)::float8 AS spend FROM cost_ledger GROUP BY team ORDER BY spend DESC LIMIT 10;",
+          "rawQuery": true,
+          "format": "table",
+          "editorMode": "code"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "continuous-GrYlRd"
+          },
+          "mappings": [],
+          "unit": "currencyUSD",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "displayMode": "gradient",
+        "maxVizHeight": 300,
+        "minVizHeight": 16,
+        "minVizWidth": 8,
+        "namePlacement": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true
+        },
+        "showUnfilled": true,
+        "sizing": "auto",
+        "valueMode": "color"
+      },
+      "description": "Showback by team \u2014 the enriched 'team' column comes from the accounts lookup in cost-normalizer. 'unassigned' means the account_id had no mapping."
+    },
+    {
+      "id": 6,
+      "type": "table",
+      "title": "Top services by spend",
+      "datasource": {
+        "type": "postgres",
+        "uid": "finflow-postgres"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "postgres",
+            "uid": "finflow-postgres"
+          },
+          "rawSql": "SELECT vendor, service, SUM(cost_usd)::float8 AS spend, COUNT(*) AS line_items FROM cost_ledger GROUP BY vendor, service ORDER BY spend DESC LIMIT 10;",
+          "rawQuery": true,
+          "format": "table",
+          "editorMode": "code"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "spend"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "gradient"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true
+      },
+      "description": "Which vendor services actually cost money."
+    },
+    {
+      "id": 7,
+      "type": "row",
+      "title": "Sagas \u2014 in-flight from Prometheus, outcomes from Postgres",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 15
+      }
+    },
+    {
+      "id": 8,
+      "type": "stat",
+      "title": "Sagas in flight",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "finflow-prometheus"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 0,
+        "y": 16
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "finflow-prometheus"
+          },
+          "expr": "sum(finflow_saga_active)",
+          "legendFormat": "in flight",
+          "range": true,
+          "editorMode": "code"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "purple"
+          },
+          "mappings": [],
+          "unit": null,
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "purple",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "description": "Sum of the finflow_saga_active gauge across all non-terminal states. Should return to 0 when the system is idle \u2014 a number that stays stuck above 0 means a saga is wedged."
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "Active sagas by state",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "finflow-prometheus"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 10,
+        "x": 6,
+        "y": 16
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "finflow-prometheus"
+          },
+          "expr": "finflow_saga_active",
+          "legendFormat": "{{state}}",
+          "range": true,
+          "editorMode": "code"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 12,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "description": "Day 22's per-state gauge. Only NON-terminal states are gauged (a forever-growing COMPLETED line is noise). A persistent COMPENSATING line is the alert-worthy signal."
+    },
+    {
+      "id": 10,
+      "type": "piechart",
+      "title": "Saga outcomes (terminal)",
+      "datasource": {
+        "type": "postgres",
+        "uid": "finflow-postgres"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 16,
+        "y": 16
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "postgres",
+            "uid": "finflow-postgres"
+          },
+          "rawSql": "SELECT current_state AS outcome, COUNT(*)::float8 AS sagas FROM saga.saga_instances WHERE current_state IN ('COMPLETED', 'COMPENSATED', 'COMPENSATION_FAILED') GROUP BY current_state ORDER BY sagas DESC;",
+          "rawQuery": true,
+          "format": "table",
+          "editorMode": "code"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "unit": null,
+          "custom": {
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "displayLabels": [
+          "percent"
+        ],
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "values": [
+            "value"
+          ]
+        },
+        "pieType": "donut",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "description": "The counterpart to the gauge: Prometheus deliberately does NOT track terminal sagas, so we read them from saga.saga_instances. COMPENSATION_FAILED > 0 is a human's problem."
+    },
+    {
+      "id": 11,
+      "type": "row",
+      "title": "Commitments",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 22
+      }
+    },
+    {
+      "id": 12,
+      "type": "gauge",
+      "title": "Avg commitment utilization",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "finflow-prometheus"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 0,
+        "y": 23
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "finflow-prometheus"
+          },
+          "expr": "finflow_commitment_utilization{stat=\"avg\"}",
+          "legendFormat": "avg utilization",
+          "range": true,
+          "editorMode": "code"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.5
+              },
+              {
+                "color": "green",
+                "value": 0.75
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "minVizHeight": 75,
+        "minVizWidth": 75,
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true,
+        "sizing": "auto"
+      },
+      "description": "Mean utilizationFraction() across all commitments. Red below 50% (the underutilization threshold), green above 75%."
+    },
+    {
+      "id": 13,
+      "type": "stat",
+      "title": "Underutilized commitments",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "finflow-prometheus"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 8,
+        "y": 23
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "finflow-prometheus"
+          },
+          "expr": "finflow_commitment_utilization{stat=\"underutilized_count\"}",
+          "legendFormat": "underutilized",
+          "range": true,
+          "editorMode": "code"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "orange"
+          },
+          "mappings": [],
+          "unit": null,
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "orange",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "description": "Commitments below the 0.50 threshold. THIS is the actionable number \u2014 each one is a rebalance candidate, which is exactly what the saga exists to execute."
+    },
+    {
+      "id": 14,
+      "type": "timeseries",
+      "title": "Commitment utilization over time",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "finflow-prometheus"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 16,
+        "y": 23
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "finflow-prometheus"
+          },
+          "expr": "finflow_commitment_utilization{stat=\"avg\"}",
+          "legendFormat": "avg utilization",
+          "range": true,
+          "editorMode": "code"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "finflow-prometheus"
+          },
+          "expr": "finflow_commitment_utilization{stat=\"underutilized_count\"}",
+          "legendFormat": "underutilized count",
+          "range": true,
+          "editorMode": "code"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 12,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "description": "Watch avg utilization climb (and the underutilized count drop) after a successful rebalance saga \u2014 that's the whole product thesis in one chart."
+    },
+    {
+      "id": 15,
+      "type": "row",
+      "title": "Recommendations",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 29
+      }
+    },
+    {
+      "id": 16,
+      "type": "text",
+      "title": "Top recommendations \u2014 awaiting recommendation-engine (Week 6)",
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 30
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "\n### Not wired yet \u2014 and that's expected.\n\nThe build plan lists **\"top recommendations\"** as a Business-dashboard panel, but\n`recommendation-engine` is still commented out in `settings.gradle.kts`:\n\n```kotlin\n// Week 6 (recommendations):\n// include(\"services:recommendation-engine\")\n```\n\nSo there is **no data source for this panel yet** \u2014 no service emits a\nrecommendation metric and no table stores recommendations. Rather than ship a\npanel that silently shows \"No data\" forever and looks broken in a demo, this\ntext panel documents the gap explicitly.\n\n**When Week 6 lands**, replace this panel with a table wired to whichever source\nrecommendation-engine writes to:\n\n| If recommendations are stored in Postgres | If exposed as a metric |\n|---|---|\n| `SELECT commitment_id, kind, est_savings_usd FROM recommendations ORDER BY est_savings_usd DESC LIMIT 10;` | `topk(10, finflow_recommendation_savings_usd)` |\n\nGiven the reasoning in the datasource config (business data belongs in Postgres,\nnot a 7-day-retention TSDB), **the Postgres table is the right home** \u2014 estimated\nsavings is business data, same as spend.\n"
+      }
+    }
+  ],
+  "annotations": {
+    "list": []
+  },
+  "templating": {
+    "list": []
+  }
+}

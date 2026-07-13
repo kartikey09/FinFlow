@@ -1,0 +1,26 @@
+# Grafana dashboard provider.
+#
+# Mounted at /etc/grafana/provisioning/dashboards/. Tells Grafana: "load every
+# dashboard JSON you find under /var/lib/grafana/dashboards". That directory is
+# a bind-mount of infra/grafana/dashboards/, so the dashboards live in git and
+# survive `docker compose down -v`.
+#
+# allowUiUpdates: true lets you tweak a panel live in the browser during a demo.
+# Those edits are NOT written back to the JSON — to keep a change, use
+# Dashboard settings -> JSON Model -> copy, and paste it into the file here.
+# (foldersFromFilesStructure would auto-create folders from subdirs; we keep a
+# single flat folder because there are only two dashboards.)
+
+apiVersion: 1
+
+providers:
+  - name: finflow
+    orgId: 1
+    folder: FinFlow
+    type: file
+    disableDeletion: false
+    allowUiUpdates: true
+    updateIntervalSeconds: 10       # re-read the JSON files every 10s (edit-friendly)
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false
