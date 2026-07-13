@@ -63,7 +63,7 @@
             "type": "postgres",
             "uid": "finflow-postgres"
           },
-          "rawSql": "SELECT COALESCE(SUM(cost_usd), 0)::float8 AS \"Total spend\" FROM cost_ledger;",
+          "rawSql": "SELECT COALESCE(SUM(cost_usd), 0)::float8 AS \"Total spend\" FROM normalizer.cost_ledger;",
           "rawQuery": true,
           "format": "table",
           "editorMode": "code"
@@ -128,7 +128,7 @@
             "type": "postgres",
             "uid": "finflow-postgres"
           },
-          "rawSql": "SELECT vendor, SUM(cost_usd)::float8 AS spend FROM cost_ledger GROUP BY vendor ORDER BY spend DESC;",
+          "rawSql": "SELECT vendor, SUM(cost_usd)::float8 AS spend FROM normalizer.cost_ledger GROUP BY vendor ORDER BY spend DESC;",
           "rawQuery": true,
           "format": "table",
           "editorMode": "code"
@@ -199,7 +199,7 @@
             "type": "postgres",
             "uid": "finflow-postgres"
           },
-          "rawSql": "SELECT $__timeGroupAlias(normalized_at, $__interval), vendor AS metric, SUM(cost_usd)::float8 AS spend FROM cost_ledger WHERE $__timeFilter(normalized_at) GROUP BY 1, vendor ORDER BY 1;",
+          "rawSql": "SELECT $__timeGroupAlias(normalized_at, $__interval), vendor AS metric, SUM(cost_usd)::float8 AS spend FROM normalizer.cost_ledger WHERE $__timeFilter(normalized_at) GROUP BY 1, vendor ORDER BY 1;",
           "rawQuery": true,
           "format": "time_series",
           "editorMode": "code"
@@ -294,7 +294,7 @@
             "type": "postgres",
             "uid": "finflow-postgres"
           },
-          "rawSql": "SELECT team, SUM(cost_usd)::float8 AS spend FROM cost_ledger GROUP BY team ORDER BY spend DESC LIMIT 10;",
+          "rawSql": "SELECT team, SUM(cost_usd)::float8 AS spend FROM normalizer.cost_ledger GROUP BY team ORDER BY spend DESC LIMIT 10;",
           "rawQuery": true,
           "format": "table",
           "editorMode": "code"
@@ -360,7 +360,7 @@
             "type": "postgres",
             "uid": "finflow-postgres"
           },
-          "rawSql": "SELECT vendor, service, SUM(cost_usd)::float8 AS spend, COUNT(*) AS line_items FROM cost_ledger GROUP BY vendor, service ORDER BY spend DESC LIMIT 10;",
+          "rawSql": "SELECT vendor, service, SUM(cost_usd)::float8 AS spend, COUNT(*) AS line_items FROM normalizer.cost_ledger GROUP BY vendor, service ORDER BY spend DESC LIMIT 10;",
           "rawQuery": true,
           "format": "table",
           "editorMode": "code"
