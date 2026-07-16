@@ -20,12 +20,20 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-autoconfigure")
 
     // Day 22: Micrometer for outbox metrics (events.published counter,
-    // outbox.pending gauge). Declared as compileOnly + optional so the library
-    // still works in a hypothetical consumer without Micrometer on the
-    // classpath — the metrics auto-config is guarded by @ConditionalOnClass.
-    // Every FinFlow service DOES have micrometer (via actuator + the prometheus
-    // registry added on Day 22), so in practice the metrics are always active.
+    // outbox.pending gauge). compileOnly so the library still works in a
+    // consumer without Micrometer — the metrics auto-config is guarded by
+    // @ConditionalOnClass.
     compileOnly("io.micrometer:micrometer-core")
+
+    // Day 24: Micrometer Tracing, for capturing the W3C traceparent onto each
+    // outbox row (see OutboxAppender.currentTraceParent). Same compileOnly
+    // pattern: the Tracer/Propagator are injected via ObjectProvider and are
+    // null when absent, so a consumer without tracing appends events exactly as
+    // before with a null trace_parent column.
+    //
+    // NOTE: micrometer-tracing (the API) — NOT micrometer-tracing-bridge-otel.
+    // The library only needs the abstraction; each SERVICE picks the bridge.
+    compileOnly("io.micrometer:micrometer-tracing")
 
     // --- test: validate against a real Postgres ---
     testImplementation("org.springframework.boot:spring-boot-starter-test")
@@ -33,6 +41,7 @@ dependencies {
     testImplementation("org.testcontainers:junit-jupiter")
     testImplementation("org.testcontainers:postgresql")
     testImplementation("io.micrometer:micrometer-core")
+    testImplementation("io.micrometer:micrometer-tracing")
     testRuntimeOnly("org.flywaydb:flyway-database-postgresql")
     testRuntimeOnly("org.postgresql:postgresql")
 }

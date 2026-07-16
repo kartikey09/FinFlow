@@ -2,6 +2,8 @@ package io.finflow.outbox;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.tracing.Tracer;
+import io.micrometer.tracing.propagation.Propagator;
 import jakarta.persistence.EntityManager;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -18,37 +20,26 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
  * so any service that adds this module as a dependency gets an
  * {@link OutboxAppender} bean with zero wiring.
  *
- * <h2>Day 20 change: the library now brings its own entity + repository scan.</h2>
+ * <h2>Day 20: the library brings its own entity + repository scan.</h2>
  *
- * <p>Before Day 20, every consuming service had to add {@code io.finflow.outbox}
- * to its own {@code @EntityScan} and {@code @EnableJpaRepositories}. Seven
- * services shipped a byte-identical {@code JpaConfig} class to do exactly that.
+ * <p>The scan is pinned to the shared root {@code io.finflow} rather than
+ * {@code io.finflow.outbox}. That's not laziness — it's required. The moment ANY
+ * {@code @EntityScan} exists, Boot stops falling back to the
+ * {@code @SpringBootApplication} package, so a narrow scan would silently
+ * un-scan each consuming service's OWN entities. Scanning the shared root covers
+ * both, and a service only ever has its own code + this library on its classpath.
  *
- * <p>Now the library declares the scan once, here. There is an important
- * Spring Boot subtlety: the moment ANY {@code @EntityScan} /
- * {@code @EnableJpaRepositories} exists, Boot STOPS falling back to the
- * {@code @SpringBootApplication} package (that fallback only fires when the
- * {@code EntityScanPackages} / repository scan is otherwise empty). So a scan
- * pinned narrowly to {@code io.finflow.outbox} would silently un-scan each
- * consuming service's OWN entities and repositories — the app would fail to
- * start with "No qualifying bean of type ...Repository".
+ * <h2>Day 22: metrics. Day 24: tracing.</h2>
  *
- * <p>The fix is to scan the shared root {@code io.finflow}, which covers BOTH
- * {@code io.finflow.outbox} and every service's own {@code io.finflow.<svc>.*}
- * packages (a service only has its own code + this library on its classpath, so
- * the broad root never pulls in a sibling service). This is what makes the
- * per-service {@code JpaConfig} genuinely redundant and safe to delete.
+ * <p>The appender takes an optional {@link MeterRegistry} (to emit
+ * {@code finflow.events.published}) and — new on Day 24 — an optional
+ * {@link Tracer} + {@link Propagator}, used to stamp the W3C traceparent onto
+ * every outbox row so the trace survives Debezium.
  *
- * <p>The Flyway timeline for {@code public.outbox_event} is handled by
- * {@link OutboxSchemaAutoConfiguration} — separate class because it needs a
- * different set of {@code @ConditionalOn*} guards.
- *
- * <h2>Day 22: metrics</h2>
- *
- * <p>The appender now takes an optional {@link MeterRegistry} (via
- * {@link ObjectProvider}, so it stays null-safe when no registry is present) to
- * emit {@code finflow.events.published}. The {@code finflow.outbox.pending}
- * gauge is registered separately by {@link OutboxMetricsAutoConfiguration}.
+ * <p>All three arrive via {@link ObjectProvider#getIfAvailable()}, which returns
+ * null when the bean doesn't exist. So the library still works in a service with
+ * no metrics, no tracing, or neither. Tracing degrades to a null column; it can
+ * never break an append.
  */
 @AutoConfiguration(after = JacksonAutoConfiguration.class)
 @ConditionalOnClass({ EntityManager.class, ObjectMapper.class })
@@ -72,9 +63,14 @@ public class OutboxAutoConfiguration {
     @ConditionalOnMissingBean
     public OutboxAppender outboxAppender(OutboxEventRepository repository,
                                          ObjectMapper objectMapper,
-                                         ObjectProvider<MeterRegistry> meterRegistry) {
-        // ObjectProvider.getIfAvailable() returns null when no MeterRegistry bean
-        // exists, keeping the library usable without Micrometer.
-        return new OutboxAppender(repository, objectMapper, meterRegistry.getIfAvailable());
+                                         ObjectProvider<MeterRegistry> meterRegistry,
+                                         ObjectProvider<Tracer> tracer,
+                                         ObjectProvider<Propagator> propagator) {
+        return new OutboxAppender(
+                repository,
+                objectMapper,
+                meterRegistry.getIfAvailable(),
+                tracer.getIfAvailable(),
+                propagator.getIfAvailable());
     }
 }

@@ -53,6 +53,18 @@ spring:
         request.timeout.ms: 30000
     listener:
       ack-mode: manual
+      # Day 24: THE consumer half of trace propagation. With this on, Spring Kafka
+      # wraps every record in a receiver Observation and runs the W3C propagator to
+      # EXTRACT the "traceparent" header (which Debezium copied out of the outbox
+      # row). Result: the listener's span is a CHILD of the span that appended the
+      # event — not a brand-new root. This single flag is what turns 8 disconnected
+      # traces into 1.
+      observation-enabled: true
+    template:
+      # Sender spans for the auto-configured KafkaTemplate (used by the DLT
+      # recoverer). Not on the main trace path — domain events go via the outbox —
+      # but free and keeps DLT hops visible.
+      observation-enabled: true
 
 finflow:
   tenant-id: default
@@ -79,6 +91,18 @@ resilience4j:
           - org.springframework.dao.DataIntegrityViolationException
 
 management:
+  # Day 24: distributed tracing.
+  tracing:
+    enabled: true
+    sampling:
+      # 100%. The Spring default is 0.1 (10%) — with 10% sampling you fire a saga,
+      # go looking for the trace, and it isn't there. Nothing is more maddening on
+      # this day. Turn this down for anything resembling production.
+      probability: 1.0
+  otlp:
+    tracing:
+      # The services run on the HOST; this is the OTel Collector's published port.
+      endpoint: http://localhost:4318/v1/traces
   endpoints:
     web:
       exposure:
@@ -92,4 +116,4 @@ logging:
     io.finflow.saga: INFO
     io.github.resilience4j: INFO
   pattern:
-    console: "%d{HH:mm:ss} %-5level %cyan(%logger{0}) - %msg%n"
+    console: "%d{HH:mm:ss} %-5level [%X{traceId:-},%X{spanId:-}] %cyan(%logger{0}) - %msg%n"

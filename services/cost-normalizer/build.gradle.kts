@@ -10,6 +10,14 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-actuator")
     // Day 22: Prometheus registry — exposes /actuator/prometheus for scraping.
     implementation("io.micrometer:micrometer-registry-prometheus")
+    // Day 24: distributed tracing.
+    //   micrometer-tracing-bridge-otel -> Micrometer's Tracer/Propagator API,
+    //     backed by the OpenTelemetry SDK. This is what makes Spring's HTTP +
+    //     Kafka observations actually produce spans and inject/extract W3C headers.
+    //   opentelemetry-exporter-otlp    -> ships those spans to the OTel Collector.
+    // Versions come from the Spring BOM (root build.gradle.kts) — do not pin.
+    implementation("io.micrometer:micrometer-tracing-bridge-otel")
+    implementation("io.opentelemetry:opentelemetry-exporter-otlp")
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
     implementation("org.springframework.kafka:spring-kafka")
     implementation(project(":shared:common"))

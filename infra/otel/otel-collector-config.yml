@@ -1,0 +1,57 @@
+# OpenTelemetry Collector — the single ingress for every span FinFlow emits.
+#
+# WHY A COLLECTOR AT ALL (Jaeger accepts OTLP directly since 1.35)?
+# You could point the services straight at Jaeger and delete this container. The
+# collector earns its place for three reasons that matter the moment this stops
+# being a toy:
+#   1. It decouples the apps from the backend. Swap Jaeger for Tempo/Honeycomb by
+#      editing ONE exporter here, not nine application.yml files.
+#   2. Batching. Nine services each firing spans one-at-a-time over HTTP is a lot
+#      of tiny requests; the batch processor coalesces them.
+#   3. It's where tail-sampling would live (keep 100% of traces that contain an
+#      error, 1% of the boring ones). Not enabled here — the demo samples
+#      everything — but this is the file it would go in.
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  # Coalesce spans before shipping. 1s is short enough that a span shows up in
+  # Jaeger while you're still looking at the terminal.
+  batch:
+    timeout: 1s
+    send_batch_size: 512
+
+  # Guard-rail: if a service floods spans, drop rather than OOM the collector.
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 256
+    spike_limit_mib: 64
+
+exporters:
+  # Jaeger v1.35+ ingests OTLP natively — no jaeger-specific exporter needed.
+  otlp/jaeger:
+    endpoint: jaeger:4317
+    tls:
+      insecure: true          # local docker network, no TLS
+
+  # Prints a one-line summary per batch to `docker logs finflow-otel-collector`.
+  # Invaluable on Day 24: it tells you INSTANTLY whether spans are arriving at
+  # all, which separates "my app isn't exporting" from "Jaeger isn't showing it".
+  debug:
+    verbosity: basic
+
+service:
+  pipelines:
+    traces:
+      receivers:  [otlp]
+      processors: [memory_limiter, batch]
+      exporters:  [otlp/jaeger, debug]
+  telemetry:
+    logs:
+      level: info

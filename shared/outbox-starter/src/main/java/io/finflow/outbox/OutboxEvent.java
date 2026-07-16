@@ -21,10 +21,6 @@ import java.util.UUID;
  * This class maps directly to the `outbox_event` table in PostgreSQL. Every time
  * your application creates one of these objects and saves it, Hibernate translates
  * it into a new database row.
- * wrote the SQL to create the outbox_event table inside your PostgreSQL database.
- * However, your Java application doesn't natively speak SQL, it needs "Translator" or "Bridge"
- * so that when your Java code wants to save an event, it knows exactly which columns exist and
- * what data types they require.It uses the Java Persistence API (JPA) and Hibernate. It mirrors the SQL table we made.
  *
  * The clever design choice:
  * The `payload` (the actual event data) is stored as a simple text String instead
@@ -32,9 +28,20 @@ import java.util.UUID;
  * completely generic. Any microservice can convert its unique data into a JSON
  * string and save it here, and this library never needs to know or care what the
  * data actually looks like.
+ *
+ * <h2>Day 24: traceParent</h2>
+ *
+ * The seventh field carries the W3C traceparent that was active when the event was
+ * appended. It is the ONLY way a trace survives the outbox: the app never talks to
+ * Kafka, so it cannot inject a Kafka header — Debezium does that, and Debezium has
+ * no access to the app's tracing context. Persisting the context in the row lets
+ * Debezium's EventRouter copy it into a Kafka header on the way out.
+ *
+ * <p>Declared LAST on purpose. Lombok's {@code @AllArgsConstructor} follows field
+ * declaration order, so appending here keeps every existing argument in the same
+ * position — the only change at the single call site (OutboxAppender) is one extra
+ * trailing argument.
  */
-
-
 @Entity
 @Table(name = "outbox_event")
 @Getter
@@ -44,10 +51,6 @@ public class OutboxEvent {
     @Id
     private UUID id;
 
-    // These three fields map directly to the text columns in your SQL table. The @Column(name = "...") annotation
-    // is only strictly necessary if the Java variable name is different from the database column name
-    // (e.g., aggregateType vs aggregate_type), but adding nullable = false ensures Java will throw an error
-    // if you try to save a blank value, acting as a great safety net.
     @Column(name = "aggregate_type", nullable = false)
     private String aggregateType;
 
@@ -57,36 +60,18 @@ public class OutboxEvent {
     @Column(nullable = false)
     private String type;
 
-    @JdbcTypeCode(SqlTypes.JSON)//Hibernate 6 feature.
-    // It automatically translates the raw Java text string into binary JSON when saving to the database,
-    // and translates it back to text when reading.
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(nullable = false, columnDefinition = "jsonb")
     private String payload;
 
     @Column(name = "created_at", nullable = false)
     private OffsetDateTime createdAt;
 
+    /**
+     * Day 24. W3C traceparent ("00-{traceId}-{spanId}-{flags}") captured from the
+     * span that was current when append() ran. NULLABLE — an event appended with no
+     * active span is still valid; it simply starts a fresh trace downstream.
+     */
+    @Column(name = "trace_parent", length = 64)
+    private String traceParent;
 }
-
-/*
-    How Hibernate Uses Reflection on OutboxEvent
-    When Hibernate reads a row from your outbox_event Postgres table, it needs to turn that SQL data into your Java
-    OutboxEvent object.
-    The problem? Hibernate's core code was written years ago. The creators of Hibernate have no idea what an OutboxEvent is,
-    what its fields are named, or what arguments your custom constructor requires.
-
-    So, Hibernate uses reflection to build your object dynamically. Here is the step-by-step process happening under
-    the hood:
-
-    1 .Finding the Class: Hibernate looks at your mapping and uses reflection to load your class into memory.
-
-    2. The No-Arg Constructor Requirement: Hibernate needs to create a blank "shell" of your object before it
-        populates the data. Because it doesn't know what arguments your custom constructor takes, it uses reflection to
-        search specifically for a constructor with zero arguments (OutboxEvent()). It then forcefully executes it to
-        instantiate the object. This is exactly why your class requires that protected no-arg constructor.
-
-    3. Bypassing Encapsulation: Notice that your OutboxEvent only exposes getters, making it "read-only" from the
-        outside. How does Hibernate set the data if there are no setters? Reflection allows Hibernate to ignore Java's
-        private or protected keywords. It grabs the blank object, forcefully opens up your private fields (like payload),
-        and injects the database values directly into them.
- */

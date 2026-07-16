@@ -1,0 +1,60 @@
+# Day 24: distributed tracing overlay — OTel Collector + Jaeger.
+#
+# Usage (compose merges -f files left to right):
+#   docker compose -f docker-compose.yml \
+#                  -f docker-compose.prometheus.yml \
+#                  -f docker-compose.grafana.yml \
+#                  -f docker-compose.tracing.yml up -d
+#
+# Jaeger UI -> http://localhost:16686
+#
+# PORT TOPOLOGY (this is the bit that trips people up):
+# The 9 services run on the HOST (./gradlew bootRun), not in compose. So they
+# export OTLP to localhost:4318 — which is the COLLECTOR's published port.
+# The collector then forwards to jaeger:4317 over the docker network.
+#
+# Jaeger's own OTLP ports (4317/4318) are deliberately NOT published: if they
+# were, they'd collide with the collector's published ports on the host. Jaeger
+# only needs to be reachable from the collector, which is inside the network.
+#
+#     host:4318  ->  otel-collector  ->  jaeger:4317  ->  Jaeger UI :16686
+#     (services)     (published)         (internal only)   (published)
+
+name: finflow
+
+services:
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.60
+    container_name: finflow-jaeger
+    environment:
+      # Jaeger has spoken OTLP natively since 1.35 — this switch turns it on.
+      COLLECTOR_OTLP_ENABLED: "true"
+      # In-memory storage. Fine for a demo; traces vanish on restart. Bump this
+      # if you want them to survive: SPAN_STORAGE_TYPE=badger + a volume.
+      MEMORY_MAX_TRACES: "50000"
+    ports:
+      - "16686:16686"      # Jaeger UI — THE thing you screenshot
+      # 4317/4318 intentionally NOT published (see the note above).
+    networks:
+      - finflow-net
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.109.0
+    container_name: finflow-otel-collector
+    command: ["--config=/etc/otel/config.yml"]
+    volumes:
+      - ./infra/otel/otel-collector-config.yml:/etc/otel/config.yml:ro
+    ports:
+      - "4317:4317"        # OTLP gRPC  — host-side services export here
+      - "4318:4318"        # OTLP HTTP  — Spring Boot's default OTLP exporter uses this
+    depends_on:
+      - jaeger
+    restart: unless-stopped
+    networks:
+      - finflow-net
+
+networks:
+  finflow-net:
+    external: true
+    name: finflow-net

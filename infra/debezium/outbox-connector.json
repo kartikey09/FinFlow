@@ -3,43 +3,39 @@
   "config": {
     "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
     "tasks.max": "1",
-
     "database.hostname": "postgres",
     "database.port": "5432",
     "database.user": "finflow",
     "database.password": "finflow",
     "database.dbname": "finflow",
     "topic.prefix": "finflow",
-
     "plugin.name": "pgoutput",
     "slot.name": "finflow_outbox_slot",
     "publication.name": "finflow_outbox_pub",
     "publication.autocreate.mode": "filtered",
-
     "table.include.list": "public.outbox_event",
     "snapshot.mode": "no_data",
     "tombstones.on.delete": "false",
     "heartbeat.interval.ms": "10000",
-
     "key.converter": "org.apache.kafka.connect.storage.StringConverter",
     "value.converter": "org.apache.kafka.connect.json.JsonConverter",
     "value.converter.schemas.enable": "false",
-
     "errors.tolerance": "all",
     "errors.deadletterqueue.topic.name": "finflow.dlq.outbox-connector",
     "errors.deadletterqueue.topic.replication.factor": "1",
     "errors.deadletterqueue.context.headers.enable": "true",
     "errors.log.enable": "true",
     "errors.log.include.messages": "true",
-
     "transforms": "outbox",
     "transforms.outbox.type": "io.debezium.transforms.outbox.EventRouter",
     "transforms.outbox.table.field.event.id": "id",
     "transforms.outbox.table.field.event.key": "aggregate_id",
-    "transforms.outbox.table.field.event.type": "type",    "transforms.outbox.table.field.event.payload": "payload",
+    "transforms.outbox.table.field.event.type": "type",
+    "transforms.outbox.table.field.event.payload": "payload",
     "transforms.outbox.table.expand.json.payload": "true",
-    "transforms.outbox.table.fields.additional.placement": "type:header:eventType",
+    "transforms.outbox.table.fields.additional.placement": "type:header:eventType,trace_parent:header:traceparent",
     "transforms.outbox.route.by.field": "aggregate_type",
-    "transforms.outbox.route.topic.replacement": "finflow.events.${routedByValue}"
+    "transforms.outbox.route.topic.replacement": "finflow.events.${routedByValue}",
+    "header.converter": "org.apache.kafka.connect.storage.StringConverter"
   }
 }

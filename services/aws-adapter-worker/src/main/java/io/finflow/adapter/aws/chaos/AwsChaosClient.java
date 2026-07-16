@@ -6,6 +6,8 @@ import io.github.resilience4j.retry.annotation.Retry;
 import io.github.resilience4j.timelimiter.annotation.TimeLimiter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
+import io.micrometer.observation.Observation;
+import io.micrometer.observation.ObservationRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -16,46 +18,35 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 
 /**
- * The single point where the adapter reaches out to the Chaos API.
+ * Calls the Chaos API's AWS rebalance endpoints, wrapped in the full Resilience4j
+ * stack (Retry + CircuitBreaker + TimeLimiter + Bulkhead, instance "aws-chaos").
  *
- * <p>Wraps every call in the full Resilience4j stack:
- * <ul>
- *   <li>{@code @Retry("aws-chaos")} — 3 attempts, 200ms base, exp backoff, 0.3 jitter</li>
- *   <li>{@code @CircuitBreaker("aws-chaos")} — opens at 50% failure over the last 20 calls</li>
- *   <li>{@code @TimeLimiter("aws-chaos")} — 7s per call (longer than the 5s chaos hang)</li>
- *   <li>{@code @Bulkhead("aws-chaos")} — max 10 concurrent calls (semaphore-based)</li>
- * </ul>
+ * <h2>Day 24: trace context does NOT cross a thread boundary by itself</h2>
  *
- * <h2>Day 21 change: TimeLimiter added, at last</h2>
+ * <p>{@code @TimeLimiter} requires a {@code CompletableFuture} return type, which is
+ * why the HTTP call lives inside {@code supplyAsync(..., CHAOS_EXECUTOR)}. That is
+ * a genuine thread hop: the lambda body runs on an "aws-chaos-timelimiter" thread,
+ * NOT the Kafka listener thread that called us.
  *
- * <p>Days 18/19 documented "TimeLimiter realized as HTTP read-timeout" because
- * Resilience4j's {@code @TimeLimiter} requires the method to return
- * {@code CompletableFuture<T>}. Day 21 explicitly calls for TimeLimiter on all
- * HTTP calls, so we take the plunge — but keep the async pattern <b>local</b>.
- * This method now returns {@code CompletableFuture<Void>}; the only caller
- * ({@code CommandExecutor}) blocks on it with {@code .get()}. No Reactor is
- * introduced anywhere else.
+ * <p>Tracing context is held in a ThreadLocal. So on the executor thread there is
+ * no current span — and the RestClient's observation, finding no parent, opens a
+ * BRAND NEW ROOT TRACE. The chaos-api call then appears in Jaeger as an unrelated
+ * orphan instead of a child of the saga. Everything still works; the trace is just
+ * quietly wrong, which is the worst kind of wrong.
  *
- * <p>The RestClient read-timeout (see {@code AwsChaosClientConfig}) STAYS as a
- * safety net below the 7s TimeLimiter. Cancelling an in-flight HTTP call
- * doesn't always release the socket immediately, so the read-timeout catches a
- * truly-hung connection that leaks past TimeLimiter's cancellation.
+ * <p>The fix is three lines: grab the current {@link Observation} on the CALLING
+ * thread (where it still exists), then re-open its scope inside the lambda so the
+ * executor thread's ThreadLocal is populated before RestClient runs. The
+ * try/finally guarantees we close the scope even when chaos throws.
  *
- * <h2>Annotation order matters</h2>
- * Aspects apply outside-in in declaration order:
- * <pre>Retry → CircuitBreaker → TimeLimiter → Bulkhead → method body</pre>
- * so one Kafka message = one CB unit (retries counted as one), a Bulkhead
- * permit is held only for one attempt, and a 7s TimeLimiter fires per attempt
- * (not across the whole 3× budget).
+ * <p>Note we deliberately use {@code micrometer-observation} (already on the
+ * classpath via actuator) rather than pulling in the {@code context-propagation}
+ * module. Re-opening the Observation's scope makes the OTel span current as a side
+ * effect, because the tracing ObservationHandler ties the two together. Same
+ * result, one fewer dependency.
  *
- * <h2>Day 22: finflow.chaos.call.latency</h2>
- *
- * <p>Each HTTP attempt is timed and recorded to {@code finflow.chaos.call.latency}
- * tagged by {@code endpoint} (the action: lock/verify/reserve/release/update-ledger)
- * and {@code outcome} (success|failure). Because the timer is INSIDE the
- * supplyAsync body, it measures ONE attempt — so the histogram reflects real
- * per-call latency, and a 5s chaos hang shows up as a 5s bucket. The dashboard
- * plots p50/p95/p99 per endpoint, success vs fail.
+ * <p>The Timer stays INSIDE the lambda on purpose (Day 22): it measures ONE attempt,
+ * so a retried call records three samples rather than one fat 3x-budget sample.
  */
 @Component
 public class AwsChaosClient {
@@ -77,10 +68,14 @@ public class AwsChaosClient {
 
     private final RestClient restClient;
     private final MeterRegistry meterRegistry;
+    private final ObservationRegistry observationRegistry;   // Day 24
 
-    public AwsChaosClient(RestClient chaosApiRestClient, MeterRegistry meterRegistry) {
+    public AwsChaosClient(RestClient chaosApiRestClient,
+                          MeterRegistry meterRegistry,
+                          ObservationRegistry observationRegistry) {
         this.restClient = chaosApiRestClient;
         this.meterRegistry = meterRegistry;
+        this.observationRegistry = observationRegistry;
     }
 
     /**
@@ -94,27 +89,42 @@ public class AwsChaosClient {
     @TimeLimiter(name = INSTANCE)
     @Bulkhead(name = INSTANCE)
     public CompletableFuture<Void> postCommitmentAction(String commitmentId, String action) {
+
+        // Day 24 — capture on the CALLER thread, where the Kafka receiver span is
+        // still current. Must happen out here; inside the lambda it's already gone.
+        Observation parent = observationRegistry.getCurrentObservation();
+
         return CompletableFuture.supplyAsync(() -> {
-            String path = "/aws/commitments/" + commitmentId + "/" + action;
-            log.debug("Chaos call POST {}", path);
-            Timer.Sample sample = Timer.start(meterRegistry);
-            String outcome = "success";
+            // Day 24 — re-open the parent scope on the executor thread so the
+            // RestClient span attaches to the saga's trace instead of starting
+            // a new root. Null-safe: untraced callers (tests) just get no scope.
+            Observation.Scope scope = (parent != null) ? parent.openScope() : null;
             try {
-                restClient.post()
-                        .uri(path)
-                        .retrieve()
-                        .toBodilessEntity();   // discard body; 2xx is all we need
-                return null;
-            } catch (RuntimeException e) {
-                outcome = "failure";
-                throw e;
+                String path = "/aws/commitments/" + commitmentId + "/" + action;
+                log.debug("Chaos call POST {}", path);
+                Timer.Sample sample = Timer.start(meterRegistry);
+                String outcome = "success";
+                try {
+                    restClient.post()
+                            .uri(path)
+                            .retrieve()
+                            .toBodilessEntity();   // discard body; 2xx is all we need
+                    return null;
+                } catch (RuntimeException e) {
+                    outcome = "failure";
+                    throw e;
+                } finally {
+                    sample.stop(Timer.builder(LATENCY_METRIC)
+                            .description("Latency of one Chaos API call attempt, by endpoint and outcome")
+                            .tag("endpoint", action)
+                            .tag("outcome", outcome)
+                            .publishPercentileHistogram()
+                            .register(meterRegistry));
+                }
             } finally {
-                sample.stop(Timer.builder(LATENCY_METRIC)
-                        .description("Latency of one Chaos API call attempt, by endpoint and outcome")
-                        .tag("endpoint", action)
-                        .tag("outcome", outcome)
-                        .publishPercentileHistogram()
-                        .register(meterRegistry));
+                if (scope != null) {
+                    scope.close();
+                }
             }
         }, CHAOS_EXECUTOR);
     }

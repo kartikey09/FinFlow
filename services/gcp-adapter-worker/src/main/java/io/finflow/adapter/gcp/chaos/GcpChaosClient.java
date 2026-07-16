@@ -6,6 +6,8 @@ import io.github.resilience4j.retry.annotation.Retry;
 import io.github.resilience4j.timelimiter.annotation.TimeLimiter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
+import io.micrometer.observation.Observation;
+import io.micrometer.observation.ObservationRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -16,23 +18,12 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 
 /**
- * GCP mirror of {@link io.finflow.adapter.aws.chaos.AwsChaosClient AwsChaosClient}.
- * Same Day-21 TimeLimiter cascade, same rationale, its own {@code gcp-chaos}
- * instance so the two adapters keep independent circuit breakers and bulkhead
- * pools.
+ * GCP mirror of {@code AwsChaosClient} (Resilience4j instance "gcp-chaos").
  *
- * <p>Path prefix is {@code /gcp/billing/commitments/...} per the plan.
- *
- * <p><b>Annotation order</b> (outermost first):
- * {@code Retry → CircuitBreaker → TimeLimiter → Bulkhead → body}.
- *
- * <h2>Day 22: finflow.chaos.call.latency</h2>
- * Same instrumentation as the AWS client — each attempt timed, tagged by
- * {@code endpoint} and {@code outcome}. The metric NAME is shared across both
- * adapters; the {@code endpoint} tag distinguishes them implicitly (aws uses
- * lock/verify/..., gcp uses the same action names but the saga vendor tag on
- * the saga metrics ties them back). If per-vendor latency split is ever needed,
- * add a {@code vendor} tag here.
+ * <p><b>Day 24:</b> carries the trace context across the {@code supplyAsync} thread
+ * hop. Without it the RestClient call runs on a "gcp-chaos-timelimiter" thread with
+ * an empty tracing ThreadLocal, so chaos-api's span becomes an orphan root instead
+ * of a child of the saga. See the long explanation on AwsChaosClient.
  */
 @Component
 public class GcpChaosClient {
@@ -49,10 +40,14 @@ public class GcpChaosClient {
 
     private final RestClient restClient;
     private final MeterRegistry meterRegistry;
+    private final ObservationRegistry observationRegistry;   // Day 24
 
-    public GcpChaosClient(RestClient chaosApiRestClient, MeterRegistry meterRegistry) {
+    public GcpChaosClient(RestClient chaosApiRestClient,
+                          MeterRegistry meterRegistry,
+                          ObservationRegistry observationRegistry) {
         this.restClient = chaosApiRestClient;
         this.meterRegistry = meterRegistry;
+        this.observationRegistry = observationRegistry;
     }
 
     @Retry(name = INSTANCE)
@@ -60,27 +55,38 @@ public class GcpChaosClient {
     @TimeLimiter(name = INSTANCE)
     @Bulkhead(name = INSTANCE)
     public CompletableFuture<Void> postCommitmentAction(String commitmentId, String action) {
+
+        // Day 24 — capture on the caller thread (see AwsChaosClient for why).
+        Observation parent = observationRegistry.getCurrentObservation();
+
         return CompletableFuture.supplyAsync(() -> {
-            String path = "/gcp/billing/commitments/" + commitmentId + "/" + action;
-            log.debug("Chaos call POST {}", path);
-            Timer.Sample sample = Timer.start(meterRegistry);
-            String outcome = "success";
+            Observation.Scope scope = (parent != null) ? parent.openScope() : null;
             try {
-                restClient.post()
-                        .uri(path)
-                        .retrieve()
-                        .toBodilessEntity();
-                return null;
-            } catch (RuntimeException e) {
-                outcome = "failure";
-                throw e;
+                String path = "/gcp/billing/commitments/" + commitmentId + "/" + action;
+                log.debug("Chaos call POST {}", path);
+                Timer.Sample sample = Timer.start(meterRegistry);
+                String outcome = "success";
+                try {
+                    restClient.post()
+                            .uri(path)
+                            .retrieve()
+                            .toBodilessEntity();
+                    return null;
+                } catch (RuntimeException e) {
+                    outcome = "failure";
+                    throw e;
+                } finally {
+                    sample.stop(Timer.builder(LATENCY_METRIC)
+                            .description("Latency of one Chaos API call attempt, by endpoint and outcome")
+                            .tag("endpoint", action)
+                            .tag("outcome", outcome)
+                            .publishPercentileHistogram()
+                            .register(meterRegistry));
+                }
             } finally {
-                sample.stop(Timer.builder(LATENCY_METRIC)
-                        .description("Latency of one Chaos API call attempt, by endpoint and outcome")
-                        .tag("endpoint", action)
-                        .tag("outcome", outcome)
-                        .publishPercentileHistogram()
-                        .register(meterRegistry));
+                if (scope != null) {
+                    scope.close();
+                }
             }
         }, CHAOS_EXECUTOR);
     }

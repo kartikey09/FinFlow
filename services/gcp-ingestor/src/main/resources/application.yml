@@ -28,6 +28,18 @@ server:
   port: 8082      # aws-ingestor is 8081
 
 management:
+  # Day 24: distributed tracing.
+  tracing:
+    enabled: true
+    sampling:
+      # 100%. The Spring default is 0.1 (10%) — with 10% sampling you fire a saga,
+      # go looking for the trace, and it isn't there. Nothing is more maddening on
+      # this day. Turn this down for anything resembling production.
+      probability: 1.0
+  otlp:
+    tracing:
+      # The services run on the HOST; this is the OTel Collector's published port.
+      endpoint: http://localhost:4318/v1/traces
   endpoints:
     web:
       exposure:
@@ -92,4 +104,4 @@ logging:
     io.finflow.ingestion: INFO
     io.github.resilience4j: INFO
   pattern:
-    console: "%d{HH:mm:ss} %-5level %cyan(%logger{0}) - %msg%n"
+    console: "%d{HH:mm:ss} %-5level [%X{traceId:-},%X{spanId:-}] %cyan(%logger{0}) - %msg%n"

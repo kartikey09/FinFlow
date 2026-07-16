@@ -34,12 +34,21 @@ public class AdminTriggerController {
 
     private static final Logger log = LoggerFactory.getLogger(AdminTriggerController.class);
 
-    private final RestClient restClient = RestClient.create();
+    /**
+     * Day 24: built from Spring's auto-configured RestClient.Builder, NOT the static
+     * factory. Only the injected builder carries ObservationRestClientCustomizer,
+     * which creates the HTTP client span and injects the traceparent header. The
+     * static factory gives you an UNINSTRUMENTED client: the call still works, it
+     * just never shows up in a trace.
+     */
+    private final RestClient restClient;
     private final String awsBaseUrl;
     private final String gcpBaseUrl;
 
-    public AdminTriggerController(@Value("${finflow.aws-ingestor.base-url}") String awsBaseUrl,
+    public AdminTriggerController(RestClient.Builder restClientBuilder,               // Day 24
+                                  @Value("${finflow.aws-ingestor.base-url}") String awsBaseUrl,
                                   @Value("${finflow.gcp-ingestor.base-url}") String gcpBaseUrl) {
+        this.restClient = restClientBuilder.build();
         this.awsBaseUrl = awsBaseUrl;
         this.gcpBaseUrl = gcpBaseUrl;
     }
