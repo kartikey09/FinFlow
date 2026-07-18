@@ -944,18 +944,98 @@
     },
     {
       "id": 16,
-      "type": "text",
-      "title": "Top recommendations \u2014 awaiting recommendation-engine (Week 6)",
+      "type": "table",
+      "title": "Top recommendations by estimated savings",
+      "description": "Live from recommendation-engine (Day 26). Reads the recommendations schema directly; the engine keeps one OPEN row per (commitment, type) and sorts by estimated monthly savings.",
+      "datasource": {
+        "type": "postgres",
+        "uid": "finflow-postgres"
+      },
       "gridPos": {
         "h": 8,
         "w": 24,
         "x": 0,
         "y": 30
       },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Est. savings / mo (USD)"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "text",
+                      "value": null
+                    },
+                    {
+                      "color": "green",
+                      "value": 100
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
       "options": {
-        "mode": "markdown",
-        "content": "\n### Not wired yet \u2014 and that's expected.\n\nThe build plan lists **\"top recommendations\"** as a Business-dashboard panel, but\n`recommendation-engine` is still commented out in `settings.gradle.kts`:\n\n```kotlin\n// Week 6 (recommendations):\n// include(\"services:recommendation-engine\")\n```\n\nSo there is **no data source for this panel yet** \u2014 no service emits a\nrecommendation metric and no table stores recommendations. Rather than ship a\npanel that silently shows \"No data\" forever and looks broken in a demo, this\ntext panel documents the gap explicitly.\n\n**When Week 6 lands**, replace this panel with a table wired to whichever source\nrecommendation-engine writes to:\n\n| If recommendations are stored in Postgres | If exposed as a metric |\n|---|---|\n| `SELECT commitment_id, kind, est_savings_usd FROM recommendations ORDER BY est_savings_usd DESC LIMIT 10;` | `topk(10, finflow_recommendation_savings_usd)` |\n\nGiven the reasoning in the datasource config (business data belongs in Postgres,\nnot a 7-day-retention TSDB), **the Postgres table is the right home** \u2014 estimated\nsavings is business data, same as spend.\n"
-      }
+        "showHeader": true,
+        "cellHeight": "sm",
+        "sortBy": [
+          {
+            "displayName": "Est. savings / mo (USD)",
+            "desc": true
+          }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "postgres",
+            "uid": "finflow-postgres"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  type                        AS \"Type\",\n  COALESCE(commitment_id, account_id) AS \"Target\",\n  vendor                      AS \"Vendor\",\n  COALESCE(service, '-')      AS \"Service\",\n  estimated_savings_usd::float8 AS \"Est. savings / mo (USD)\"\nFROM recommendations.recommendation\nWHERE status = 'OPEN'\nORDER BY estimated_savings_usd DESC\nLIMIT 10;"
+        }
+      ]
     }
   ],
   "annotations": {
