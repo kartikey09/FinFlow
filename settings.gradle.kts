@@ -43,5 +43,5 @@ include("shared:common")
 // Day 25 (chaos test suite): drives the LIVE stack — not a service, a test harness.
  include("tests:chaos-suite")
 //
-// Week 6 (recommendations):
-// include("services:recommendation-engine")
+// Week 6 (recommendations): the deferred "product layer" — Day 26.
+ include("services:recommendation-engine")
