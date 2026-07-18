@@ -1,0 +1,54 @@
+# Day 25: route Kafka traffic THROUGH Toxiproxy so we can break it on purpose.
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.chaos.yml up -d
+#
+# ---------------------------------------------------------------------------
+# THE ADVERTISED-LISTENER TRAP (why this file exists at all)
+# ---------------------------------------------------------------------------
+# The naive setup is: point Toxiproxy's upstream at kafka:9092 and tell the
+# services to connect to localhost:26092. It does not work, and it fails in a
+# confusing way.
+#
+# Kafka's bootstrap handshake returns a METADATA response listing the broker's
+# ADVERTISED address. A client connecting through Toxiproxy to kafka:9092 gets
+# told "the broker is at kafka:9092" — so on its very next call it dials
+# kafka:9092 DIRECTLY. From the host that name doesn't resolve, so the client
+# dies... and even if it did resolve, it would have BYPASSED Toxiproxy entirely,
+# so your toxics would silently do nothing.
+#
+# The fix is a listener whose advertised address IS the proxy:
+#
+#   host client  ->  localhost:26092  (Toxiproxy, published)
+#                       |
+#                       v
+#                    kafka:29192      (the new PROXY listener)
+#                       |
+#                       v
+#          advertises "localhost:26092"  -> client stays on the proxy path. 
+#
+# This overlay only OVERRIDES three environment keys on the kafka service and
+# adds nothing else. Compose merges `environment` maps per-key, so the base
+# docker-compose.yml is untouched.
+# ---------------------------------------------------------------------------
+
+name: finflow
+
+services:
+
+  kafka:
+    environment:
+      # + PROXY://0.0.0.0:29192  (an internal-only listener; NOT published to host)
+      KAFKA_LISTENERS: "PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093,EXTERNAL://0.0.0.0:29092,PROXY://0.0.0.0:29192"
+      # ...advertised as localhost:26092, which is Toxiproxy's published port.
+      # THIS is the line that keeps clients on the proxy path.
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka:9092,EXTERNAL://localhost:29092,PROXY://localhost:26092"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT,PROXY:PLAINTEXT"
+
+  toxiproxy:
+    # The base compose already publishes 8474 (admin API) and 26092 (listener),
+    # and already mounts infra/docker/toxiproxy/toxiproxy.json — which was an
+    # empty [] until now. Day 25 fills it in with the kafka proxy, so the proxy
+    # exists at boot and the harness only has to add/remove TOXICS at runtime.
+    depends_on:
+      - kafka

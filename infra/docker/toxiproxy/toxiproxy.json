@@ -1,1 +1,8 @@
-[]
+[
+  {
+    "name": "kafka",
+    "listen": "0.0.0.0:26092",
+    "upstream": "kafka:29192",
+    "enabled": true
+  }
+]

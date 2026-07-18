@@ -40,5 +40,8 @@ include("shared:common")
  include("services:aws-adapter-worker")
  include("services:gcp-adapter-worker")
 //
+// Day 25 (chaos test suite): drives the LIVE stack — not a service, a test harness.
+ include("tests:chaos-suite")
+//
 // Week 6 (recommendations):
 // include("services:recommendation-engine")
